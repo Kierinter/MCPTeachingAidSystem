@@ -1,26 +1,30 @@
 from typing import Any
-# 用于发送 HTTP 请求
 import httpx
-# 用于创建 MCP 服务
-from mcp.server.fastmcp import FastMCP
 
-# 初始化一个MCP服务实例，服务名称就是weather，这将作为 MCP 客户端或大模型识别服务的标识
+from mcp.server.fastmcp import FastMCP
+import asyncio
+import os
+
 mcp = FastMCP("weather")
 
 # 定义OpenWeatherMap API 的基础URL
-OPENWEATHER_API_BASE = "https://api.openweathermap.org/data/2.5"
+OPENWEATHER_API_BASE = os.getenv("OPENWEATHER_API_BASE")
 # API 密钥
-OPENWEATHER_API_KEY = "3eb1148a1d6c909afa7179cd74b4713c"
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+
+if not OPENWEATHER_API_KEY:
+    raise ValueError("请设置 OPENWEATHER_API_KEY 环境变量")
 
 # API 调用的身份识别
 USER_AGENT = "weather-app/1.0"
 
 # 核心工具函数：负责向OpenWeatherMap API 发送请求并处理响应
-async def make_weather_request(url: str) -> dict[str, Any] | None:
+async def make_weather_request(url: str, max_retries: int = 3) -> dict[str, Any] | None:
     """向OpenWeatherMap API 发送请求并处理响应，包括适当的错误处理。
 
     Args:
         url (str): 完整的OpenWeatherMap API 请求URL
+        max_retries (int): 最大重试次数，默认为3次
         
     Returns:
         dict[str, Any]
@@ -32,18 +36,36 @@ async def make_weather_request(url: str) -> dict[str, Any] | None:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
+    
     # 创建异步Http客户端会话
     async with httpx.AsyncClient() as client:
-        try:
-            # 发送GET请求，并设置请求头和超时
-            response = await client.get(url, headers=headers, timeout=30.0)
-            # 检查HTTP状态，非2XX状态码会抛出异常
-            response.raise_for_status()
-            # 解析JSON响应数据并返回
-            return response.json()
-        except Exception as e:
-            print(f"错误 {e}")
-            return None
+        for attempt in range(max_retries):
+            try:
+                # 发送GET请求，并设置请求头和超时
+                response = await client.get(url, headers=headers, timeout=30.0)
+                # 检查HTTP状态，非2XX状态码会抛出异常
+                response.raise_for_status()
+                # 解析JSON响应数据并返回
+                return response.json()
+            except httpx.TimeoutException:
+                if attempt == max_retries - 1:
+                    print(f"请求超时，已达到最大重试次数 {max_retries}")
+                    return None
+                print(f"请求超时，正在进行第 {attempt + 1} 次重试...")
+                await asyncio.sleep(1)  # 等待1秒后重试
+            except httpx.HTTPStatusError as e:
+                print(f"HTTP错误: {e.response.status_code} - {e.response.text}")
+                return None
+            except httpx.RequestError as e:
+                print(f"请求错误: {str(e)}")
+                if attempt == max_retries - 1:
+                    return None
+                print(f"正在进行第 {attempt + 1} 次重试...")
+                await asyncio.sleep(1)  # 等待1秒后重试
+            except Exception as e:
+                print(f"未知错误: {str(e)}")
+                return None
+    return None
 
 # 辅助函数：将当前JSON格式的天气数据转换为可读的文本格式
 def format_weather_data(data: dict, units: str = "metric") -> str:
@@ -107,27 +129,34 @@ async def get_weather(city: str, country_code: str = None, state_code: str = Non
     Returns:
         str: 格式化的当前天气信息文本
     """
-    # 构建位置查询参数，支持城市名称、州代码和国家代码组合
-    location_query = city
-    if state_code and country_code:
-        # 格式：城市，州代码，国家代码
-        location_query = f"{city},{state_code},{country_code}"
-    if country_code:
-        # 格式：城市，国家代码
-        location_query = f"{city},{country_code}"
-    
-    # 构建API请求URL,参数包含位置查询、API密钥、测量单位和语言
-    url = f"{OPENWEATHER_API_BASE}/weather?q={location_query}&appid={OPENWEATHER_API_KEY}&units={units}&lang={lang}"
-    
-    # 发送请求并获取响应数据
-    data = await make_weather_request(url)
+    try:
+        # 构建位置查询参数，支持城市名称、州代码和国家代码组合
+        location_query = city
+        if state_code and country_code:
+            # 格式：城市，州代码，国家代码
+            location_query = f"{city},{state_code},{country_code}"
+        elif country_code:
+            # 格式：城市，国家代码
+            location_query = f"{city},{country_code}"
+        
+        # 构建API请求URL,参数包含位置查询、API密钥、测量单位和语言
+        url = f"{OPENWEATHER_API_BASE}/weather?q={location_query}&appid={OPENWEATHER_API_KEY}&units={units}&lang={lang}"
+        
+        # 发送请求并获取响应数据
+        data = await make_weather_request(url)
+        
+        if not data:
+            return "无法获取天气数据，请稍后重试。"
 
-    # 检查 API 响应中的错误代码
-    if "cod" in data and data["cod"] != 200:
-        return f"获取天气信息失败，错误：{data.get('message', '未知错误')}"
-    
-    # 使用辅助函数格式化天气信息并返回，传入data和units参数
-    return format_weather_data(data, units)
+        # 检查 API 响应中的错误代码
+        if "cod" in data and data["cod"] != 200:
+            return f"获取天气信息失败，错误：{data.get('message', '未知错误')}"
+        
+        # 使用辅助函数格式化天气信息并返回，传入data和units参数
+        return format_weather_data(data, units)
+    except Exception as e:
+        print(f"获取天气信息时出错: {str(e)}")
+        return f"获取天气信息时出错: {str(e)}"
 
 # MCP 工具2：提供5天天气预报的查询功能，传入城市名称、国家代码(可选)、州代码(可选)、测量单位(可选)和语言(可选)
 @mcp.tool()
@@ -277,7 +306,7 @@ async def weather_report(city: str, country_code: str = None, state_code: str = 
     # 大模型调用这个工具会收到包含原始数据，模板名称，模板参数的结构化返回结果
     # 大模型识别到prompt_template字段指向 weather_report 这个函数模板，会调用这个函数，并传入模板参数
     # 大模型自动用 template_args 中的值填充 weather_report 模板中的对应参数。
-    # 填充后的模板会成为大模型自己的 “思考提示”，然后大模型会根据这个提示，生成最终的回答。
+    # 填充后的模板会成为大模型自己的 "思考提示"，然后大模型会根据这个提示，生成最终的回答。
     # 这就像我们去餐厅点餐:
     # mcp.prompt()的定义就相当于菜单上的标准食谱
     # weather_prompt 函数相当于收集食材

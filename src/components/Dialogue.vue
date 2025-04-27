@@ -1,9 +1,11 @@
 <script setup>
 import { ref } from 'vue';
+import { marked } from 'marked';
 
 const query = ref('');
 const messages = ref([]);
 const isLoading = ref(false);
+const currentResponse = ref('');
 
 async function handleSendMessage() {
   if (!query.value.trim()) return;
@@ -15,6 +17,8 @@ async function handleSendMessage() {
   });
   
   isLoading.value = true;
+  currentResponse.value = ''; // 重置当前响应
+  
   try {
     const response = await fetch('http://localhost:5000/api/weather', {
       method: 'POST',
@@ -23,28 +27,49 @@ async function handleSendMessage() {
       },
       body: JSON.stringify({
         query: query.value,
-        streaming: false, // 可选，是否启用流式输出
+        streaming: true,
       }),
     });
 
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(data.error);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // 添加助手回复
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      try {
+        const data = JSON.parse(chunk);
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        if (data.response) {
+          currentResponse.value += data.response;
+        }
+      } catch (e) {
+        console.error('Error parsing chunk:', e);
+      }
+    }
+
+    // 添加完整的助手回复
     messages.value.push({
       role: 'assistant',
-      content: data.response
+      content: currentResponse.value
     });
   } catch (error) {
     console.error('Error:', error);
     messages.value.push({
       role: 'error',
-      content: '发送消息时出错，请重试。'
+      content: `发送消息时出错: ${error.message}`
     });
   } finally {
     isLoading.value = false;
+    currentResponse.value = '';
     query.value = ''; // 清空输入框
   }
 }
@@ -55,14 +80,10 @@ async function handleSendMessage() {
     <div class="messages-container">
       <div v-for="(message, index) in messages" :key="index" 
            :class="['message', message.role]">
-        <div class="message-content">
-          {{ message.content }}
-        </div>
+        <div class="message-content" v-html="marked(message.content)"></div>
       </div>
       <div v-if="isLoading" class="message assistant">
-        <div class="message-content">
-          正在思考...
-        </div>
+        <div class="message-content" v-html="marked(currentResponse)"></div>
       </div>
     </div>
     
@@ -172,5 +193,43 @@ button:hover {
 button:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+/* Markdown 样式 */
+.message-content :deep(pre) {
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.message-content :deep(code) {
+  background: #f6f8fa;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.message-content :deep(blockquote) {
+  border-left: 4px solid #dfe2e5;
+  padding-left: 16px;
+  margin-left: 0;
+  color: #6a737d;
+}
+
+.message-content :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.message-content :deep(th),
+.message-content :deep(td) {
+  border: 1px solid #dfe2e5;
+  padding: 6px 13px;
+}
+
+.message-content :deep(th) {
+  background: #f6f8fa;
 }
 </style>
