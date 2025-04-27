@@ -14,6 +14,9 @@ const goToLogin = () => {
 const goToRegister = () => {
   router.push('/register')
 }
+const goToMain = () =>{
+  router.push('/index')
+}
 </script>
 
 <template>
@@ -21,7 +24,7 @@ const goToRegister = () => {
     <header>
       <h1>AI 教辅系统</h1>
       <nav>
-        <a href="#">功能</a>
+        <a href="#" @click.prevent ="goToMain">主页</a>
         <a href="#" @click.prevent="goToLogin">登录</a>
         <a href="#" @click.prevent="goToRegister">注册</a>
       </nav>

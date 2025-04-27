@@ -1,105 +1,176 @@
 <script setup>
-// 组件逻辑部分
+import { ref } from 'vue';
+
+const query = ref('');
+const messages = ref([]);
+const isLoading = ref(false);
+
+async function handleSendMessage() {
+  if (!query.value.trim()) return;
+  
+  // 添加用户消息
+  messages.value.push({
+    role: 'user',
+    content: query.value
+  });
+  
+  isLoading.value = true;
+  try {
+    const response = await fetch('http://localhost:5000/api/weather', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: query.value,
+        streaming: false, // 可选，是否启用流式输出
+      }),
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    // 添加助手回复
+    messages.value.push({
+      role: 'assistant',
+      content: data.response
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    messages.value.push({
+      role: 'error',
+      content: '发送消息时出错，请重试。'
+    });
+  } finally {
+    isLoading.value = false;
+    query.value = ''; // 清空输入框
+  }
+}
 </script>
 
 <template>
-  <div>
-    <header>物理作业生成</header>
-
-    <div class="chat-container">
-      <div class="message user">我需要生成今天的物理作业</div>
-      <div class="message ai">请上传今日教学进度、需要考察的知识点以及生成的题量。</div>
+  <div class="chat-container">
+    <div class="messages-container">
+      <div v-for="(message, index) in messages" :key="index" 
+           :class="['message', message.role]">
+        <div class="message-content">
+          {{ message.content }}
+        </div>
+      </div>
+      <div v-if="isLoading" class="message assistant">
+        <div class="message-content">
+          正在思考...
+        </div>
+      </div>
     </div>
-
-    <div class="input-area">
-      <input type="text" placeholder="请输入..." />
-      <input type="file" id="fileUpload" style="display: none;" />
-      <button @click="document.getElementById('fileUpload').click()">📎 上传文件</button>
-      <button>发送</button>
+    
+    <div class="input-container">
+      <textarea
+        v-model="query"
+        placeholder="输入您的问题"
+        @keyup.enter.ctrl="handleSendMessage"
+      ></textarea>
+      <button 
+        @click="handleSendMessage"
+        :disabled="isLoading || !query.trim()"
+      >
+        {{ isLoading ? '发送中...' : '发送' }}
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f1f5f9;
+.chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-header {
-  background-color: #1e3a8a;
-  color: white;
-  padding: 16px;
-  text-align: center;
-  font-size: 20px;
-}
-
-.chat-container {
+.messages-container {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  max-width: 1000px;
-  width: 100%;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 20px;
 }
 
 .message {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 15px;
-  line-height: 1.5;
+  margin-bottom: 16px;
+  max-width: 80%;
 }
 
-.user {
-  align-self: flex-end;
-  background-color: #3b82f6;
+.message.user {
+  margin-left: auto;
+}
+
+.message.assistant {
+  margin-right: auto;
+}
+
+.message.error {
+  margin-right: auto;
+  color: #ff4444;
+}
+
+.message-content {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.message.user .message-content {
+  background: #007AFF;
   color: white;
 }
 
-.ai {
-  align-self: flex-start;
-  background-color: #e2e8f0;
-  color: #111827;
+.message.assistant .message-content {
+  background: white;
 }
 
-.input-area {
+.message.error .message-content {
+  background: #ffebee;
+  color: #ff4444;
+}
+
+.input-container {
   display: flex;
-  padding: 16px;
-  background-color: white;
-  border-top: 1px solid #ccc;
-  max-width: 1000px;
-  width: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
+  gap: 10px;
 }
 
-.input-area input {
+textarea {
   flex: 1;
-  padding: 10px;
-  border: 1px solid #ccc;
+  padding: 12px;
+  border: 1px solid #ddd;
   border-radius: 8px;
-  margin-right: 10px;
+  resize: none;
+  height: 60px;
+  font-family: inherit;
 }
 
-.input-area button {
-  padding: 10px 14px;
-  background-color: #1e40af;
+button {
+  padding: 0 20px;
+  background: #007AFF;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  margin-left: 8px;
+  transition: background 0.2s;
 }
 
-.input-area button:hover {
-  background-color: #1e3a8a;
+button:hover {
+  background: #0056b3;
 }
-</style> 
+
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+</style>
