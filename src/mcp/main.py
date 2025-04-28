@@ -1,14 +1,18 @@
 from __future__ import annotations
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from quart import Quart, request, jsonify, Response
+from quart_cors import cors
 
 import asyncio
 import os
 import json
 import traceback
+from typing import AsyncGenerator
+import logging
 
 from openai import AsyncOpenAI
-from agents.mcp import MCPServer, MCPServerStdio 
+from agents.mcp import MCPServer, MCPServerStdio
 from openai.types.responses import ResponseTextDeltaEvent, ResponseContentPartDoneEvent
 from dotenv import load_dotenv
 
@@ -39,6 +43,15 @@ API_KEY = os.getenv("API_KEY")
 BASE_URL = os.getenv("BASE_URL")
 # 设置DeepSeek API模型名称
 MODEL_NAME = os.getenv("MODEL_NAME")
+# 设置Puppeteer服务器配置
+# 从环境变量获取USE_PUPPETEER配置,默认为"false"
+# 将字符串转换为小写后与"true"比较,得到布尔值
+# 用于控制是否启用Puppeteer功能
+USE_PUPPETEER = os.getenv("USE_PUPPETEER", "false").lower() == "true"
+try:
+    PUPPETEER_LAUNCH_OPTIONS = json.loads(os.getenv("PUPPETEER_LAUNCH_OPTIONS", "{}"))
+except json.JSONDecodeError:
+    raise ValueError("PUPPETEER_LAUNCH_OPTIONS 格式无效")
 
 if not API_KEY:
     raise ValueError("DeepSeek API密钥未设置")
@@ -46,6 +59,11 @@ if not BASE_URL:
     raise ValueError("DeepSeek API基础URL未设置")
 if not MODEL_NAME:
     raise ValueError("DeepSeek API模型名称未设置")
+
+if not os.getenv("OPENWEATHER_API_BASE"):
+    raise ValueError("OpenWeather API基础URL未设置")
+if not os.getenv("OPENWEATHER_API_KEY"):
+    raise ValueError("OpenWeather API密钥未设置")
 
 # 创建 DeepSeek API 客户端(使用兼容openai的接口)
 client = AsyncOpenAI(
@@ -63,26 +81,81 @@ class DeepseekModelProvider(ModelProvider):
 
 model_provider = DeepseekModelProvider()
 
-async def run_weather_agent(query: str, streaming: bool = True) -> str:
-    """
-    启动并运行天气agent，支持流式输出
+#配置日志
+logging.basicConfig(
+    level=logging.INFO,  # 将日志级别改为INFO
+    format='%(message)s'  # 简化日志格式
+)
+logger = logging.getLogger(__name__)
 
-    Args:
-        query (str): 用户的自然语言查询
-        streaming (bool): 是否流式输出
-    """
+# 设置其他模块的日志级别
+logging.getLogger('openai').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+
+# 在main.py中添加puppeteer工具配置
+puppeteer_tools = [
+    {
+        "name": "puppeteer_navigate",
+        "description": "导航到指定URL",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "要访问的URL"
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "puppeteer_screenshot",
+        "description": "捕获页面截图",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "截图名称"
+                },
+                "selector": {
+                    "type": "string",
+                    "description": "要截图的元素选择器"
+                }
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "puppeteer_evaluate",
+        "description": "在浏览器中执行JavaScript代码",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "script": {
+                    "type": "string",
+                    "description": "要执行的JavaScript代码"
+                }
+            },
+            "required": ["script"]
+        }
+    }
+]
+
+async def run_weather_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     weather_server = None
-
+    puppeteer_server = None
     try:
-        print("正在初始化DeepSeek-MCP天气查询agent...")
-        # 创建 MCP 服务器连接实例，但不立即运行
+        # 初始化天气服务器
+        logger.info("初始化天气服务器...")
         weather_server = MCPServerStdio(
             name="weather",
             params={
-                "command": "python",  # 直接使用 python 命令
-                "args": ["src/mcp/weather.py"],  # 使用相对路径
+                "command": "python",
+                "args": ["src/mcp/weather.py"],
                 "env": {
-                    "PYTHONPATH": os.getcwd(),  # 添加当前工作目录到 Python 路径
+                    "PYTHONPATH": os.getcwd(),
                     "OPENWEATHER_API_BASE": os.getenv("OPENWEATHER_API_BASE"),
                     "OPENWEATHER_API_KEY": os.getenv("OPENWEATHER_API_KEY")
                 }
@@ -90,40 +163,118 @@ async def run_weather_agent(query: str, streaming: bool = True) -> str:
             cache_tools_list=True
         )
         
+        # 初始化Puppeteer服务器（如果需要）
+        if USE_PUPPETEER:
+            logger.info("初始化Puppeteer服务器...")
+            puppeteer_server = MCPServerStdio(
+                name="puppeteer",
+                params={
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+                    "env": {
+                        "PUPPETEER_LAUNCH_OPTIONS": json.dumps(PUPPETEER_LAUNCH_OPTIONS),
+                        "ALLOW_DANGEROUS": "true"
+                    }
+                },
+                cache_tools_list=True
+            )
+
+            # 搜索并提取信息
+            async def search_and_extract(query: str):
+                try:
+                    # 1. 使用puppeteer_navigate访问搜索引擎
+                    await puppeteer_server.call_tool("puppeteer_navigate", {
+                        "url": f"https://www.google.com/search?q={query}"
+                    })
+                    
+                    # 2. 使用puppeteer_evaluate提取搜索结果
+                    results = await puppeteer_server.call_tool("puppeteer_evaluate", {
+                        "script": """
+                            return Array.from(document.querySelectorAll('div.g')).map(el => ({
+                                title: el.querySelector('h3')?.textContent,
+                                link: el.querySelector('a')?.href,
+                                snippet: el.querySelector('div.VwiC3b')?.textContent
+                            }))
+                        """
+                    })
+                    
+                    # 3. 如果需要，可以捕获页面截图
+                    await puppeteer_server.call_tool("puppeteer_screenshot", {
+                        "name": "search_results",
+                        "selector": "div#search"
+                    })
+                    
+                    return results
+                except Exception as e:
+                    logger.error(f"使用puppeteer工具时出错: {str(e)}")
+                    return None
+
+            # 尝试使用puppeteer搜索
+            try:
+                async with asyncio.timeout(30):  # 设置30秒超时
+                    search_results = await search_and_extract(query)
+                    if search_results:
+                        yield json.dumps({"response": f"搜索到相关信息：{json.dumps(search_results)}"}) + "\n"
+            except asyncio.TimeoutError:
+                logger.warning("搜索超时")
+            except Exception as e:
+                logger.error(f"搜索过程中出错: {str(e)}")
+
         try:
             # 添加超时机制
             async with asyncio.timeout(60):  # 设置60秒超时
-                print("正在连接到 MCP 服务器...")
+                logger.info("正在连接到MCP服务器...")
                 # 手动连接到MCP服务器
                 await weather_server.connect()
-                print("MCP 服务器连接成功")
+                logger.info("MCP服务器连接成功")
+
+                if USE_PUPPETEER:
+                    logger.info("正在连接到Puppeteer服务器...")
+                    await puppeteer_server.connect()
+                    logger.info("Puppeteer服务器连接成功")
 
                 # 等待服务器连接成功并获取MCP服务可用工具列表
-                print("正在获取可用工具列表...")
+                logger.info("正在获取可用工具列表...")
                 tools = await weather_server.list_tools()
-                print("\n可用工具列表: ")
+                logger.info("可用工具列表:")
                 for tool in tools:
-                    print(f" - {tool.name}: {tool.description}")
+                    logger.info(f" - {tool.name}: {tool.description}")
+
+                if USE_PUPPETEER:
+                    puppeteer_tools = await puppeteer_server.list_tools()
+                    logger.info("Puppeteer工具列表:")
+                    for tool in puppeteer_tools:
+                        logger.info(f" - {tool.name}: {tool.description}")
 
                 # 创建agent实例
+                mcp_servers = [weather_server]
+                if USE_PUPPETEER:
+                    mcp_servers.append(puppeteer_server)
+
                 weather_agent = Agent(
-                    name="天气助手",
+                    name="生活助手",
                     instructions=(
-                        "你是一个专业的天气助手，可以帮助用户查询和分析天气信息。"
-                        "用户可能会询问天气状况、天气预报等信息，请根据用户的问题选择合适的工具进行查询。"
+                        "你是一个专业且全能的生活助手，可以帮助用户查询和分析生活信息。"
+                        "你可以使用以下工具来获取信息："
+                        "1. 天气查询工具：获取实时天气信息"
+                        "2. Puppeteer工具："
+                        "   - 使用puppeteer_navigate访问网页"
+                        "   - 使用puppeteer_evaluate执行JavaScript代码来提取信息"
+                        "   - 使用puppeteer_screenshot捕获重要信息"
+                        "请根据用户的问题选择合适的工具组合来获取信息。"
                     ),
-                    mcp_servers=[weather_server],
+                    mcp_servers=mcp_servers,
                     model_settings=ModelSettings(
                         temperature=0.6,
                         top_p=0.9,
-                        max_tokens=4096,
+                        max_tokens=40960,
                         tool_choice="auto",
                         parallel_tool_calls=True,
                         truncation="auto"
                     )
                 )
 
-                print(f"\n正在处理：{query}\n")
+                logger.info(f"正在处理：{query}")
 
                 if streaming:
                     result = Runner.run_streamed(
@@ -137,70 +288,25 @@ async def run_weather_agent(query: str, streaming: bool = True) -> str:
                         )
                     )
 
-                    print("回复:", end="", flush=True)
+                    logger.info("开始流式响应")
                     try:
                         async for event in result.stream_events():
                             if event.type == "raw_response_event":
                                 if isinstance(event.data, ResponseTextDeltaEvent):
-                                    print(event.data.delta, end="", flush=True)
+                                    yield json.dumps({"response": event.data.delta}) + "\n"
                                 elif isinstance(event.data, ResponseContentPartDoneEvent):
-                                    print(f"\n", end="", flush=True)
+                                    yield json.dumps({"response": "\n"}) + "\n"
                             elif event.type == "run_item_stream_event":
                                 if event.item.type == "tool_call_item":
-                                    print(f"当前被调用工具信息: {event.item}")
-                                    raw_item = getattr(event.item, "raw_item", None)
-                                    tool_name = ""
-                                    tool_args = {}
-                                    if raw_item:
-                                        tool_name = getattr(raw_item, "name", "未知工具")
-                                        tool_str = getattr(raw_item, "arguments", "{}")
-                                        if isinstance(tool_str, str):
-                                            try:
-                                                tool_args = json.loads(tool_str)
-                                            except json.JSONDecodeError:
-                                                tool_args = {"raw_arguments": tool_str}
-                                    print(f"\n工具名称: {tool_name}", flush=True)
-                                    print(f"\n工具参数: {tool_args}", flush=True)
-
+                                    logger.info(f"当前被调用工具信息: {event.item}")
                                 elif event.item.type == "tool_call_output_item":
-                                    raw_item = getattr(event.item, "raw_item", None)
-                                    tool_id = "未知工具ID"
-                                    if isinstance(raw_item, dict) and "call_id" in raw_item:
-                                        tool_id = raw_item["call_id"]
-                                    output = getattr(event.item, "output", "未知输出")
-
-                                    output_text = ""
-                                    if isinstance(output, str) and (output.startswith("{") or output.startswith("[")):
-                                        try:
-                                            output_data = json.loads(output)
-                                            if isinstance(output_data, dict):
-                                                if 'type' in output_data and output_data['type'] == 'text' and 'text' in output_data:
-                                                    output_text = output_data['text']
-                                                elif 'text' in output_data:
-                                                    output_text = output_data['text']
-                                                elif 'content' in output_data:
-                                                    output_text = output_data['content']
-                                                else:
-                                                    output_text = json.dumps(output_data, ensure_ascii=False, indent=2)
-                                        except json.JSONDecodeError:
-                                            output_text = str(output)
-                                    else:
-                                        output_text = str(output)
-
-                                    print(f"\n工具调用{tool_id} 返回结果: {output_text}", flush=True)
+                                    logger.info(f"工具调用返回结果: {event.item.output}")
                     except asyncio.TimeoutError:
-                        print("\n处理超时，请重试。")
-                        return "处理超时，请重试。"
+                        yield json.dumps({"error": "处理超时，请重试。"}) + "\n"
                     except Exception as e:
-                        print(f"\n处理流式响应事件时发生错误: {e}")
-                        return f"处理响应时发生错误: {str(e)}"
-
-                    if hasattr(result, "final_output"):
-                        return result.final_output
-                    else:
-                        return "未获取到信息"
+                        yield json.dumps({"error": f"处理响应时发生错误: {str(e)}"}) + "\n"
                 else:
-                    print("使用非流式输出模式处理查询...")
+                    logger.info("使用非流式输出模式处理查询...")
                     result = await Runner.run(
                         weather_agent,
                         input=query,
@@ -213,100 +319,73 @@ async def run_weather_agent(query: str, streaming: bool = True) -> str:
                     )
 
                     if hasattr(result, "final_output"):
-                        print("\n===== 完整信息 =====")
-                        print(result.final_output)
-                        return result.final_output
+                        yield json.dumps({"response": result.final_output}) + "\n"
                     else:
-                        print("\n未获取到信息")
-                        return "未获取到信息"
+                        yield json.dumps({"response": "未获取到信息"}) + "\n"
 
         except asyncio.TimeoutError:
-            print("\n连接或处理超时，请重试。")
-            return "连接或处理超时，请重试。"
+            yield json.dumps({"error": "连接或处理超时，请重试。"}) + "\n"
         except Exception as e:
-            print(f"\n连接MCP服务或执行查询时出错: {e}")
-            return f"连接MCP服务或执行查询时出错: {str(e)}"
+            yield json.dumps({"error": f"连接MCP服务或执行查询时出错: {str(e)}"}) + "\n"
             
     except Exception as e:
-        print(f"\n运行天气Agent时出错: {e}")
-        return f"运行天气Agent时出错: {str(e)}"
+        yield json.dumps({"error": f"运行天气Agent时出错: {str(e)}"}) + "\n"
     finally:
+        # 清理服务器资源
+        cleanup_tasks = []
         if weather_server:
-            print("正在清理 MCP 服务器资源...")
+            cleanup_tasks.append(weather_server.cleanup())
+        if puppeteer_server:
+            cleanup_tasks.append(puppeteer_server.cleanup())
+        
+        if cleanup_tasks:
             try:
-                await weather_server.cleanup()
-                print("MCP服务器资源清理成功！")
+                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+                logger.info("服务器资源清理成功！")
             except Exception as e:
-                print(f"清理MCP服务器资源时出错: {e}")
+                logger.error(f"清理服务器资源时出错: {e}")
 
-# async def main():
-#     """
-#     应用程序主函数 - 循环交互模式
-
-#     这个函数实现了一个交互式循环，让用户输入自然语言查询天气相关信息
-#     """
-
-
-#     try:
-#         while True:
-#             # 获取用户输入
-#             user_query = input("\n请输入您的天气查询(输入'quit'或'退出'结束程序): ").strip()
-
-#             # 检查是否退出
-#             if user_query.lower() in ["quit", "退出"]:
-#                 print("感谢使用DeepSeek MCP天气查询系统，再见！")
-#                 break
-            
-#             # 如果查询为空，则提示用户输入
-#             if not user_query:
-#                 print("查询内容不能为空，请重新输入。")
-#                 continue
-            
-#             # 获取输出模型
-#             streaming = input("是否启用流式输出? (y/n, 默认y): ").strip().lower() != "n"
-
-#             # 运行天气查询agent，直接传入用户的自然语言和流式输出模式
-#             await run_weather_agent(user_query, streaming)
-
-#     except KeyboardInterrupt:
-#         print("\n程序被用户中断，正在退出...")
-#     except Exception as e:
-#         print(f"程序运行时发生错误: {e}")
-#         traceback.print_exc()
-#     finally:
-#         print("程序结束，所有资源已释放。")
-
-
-app = Flask(__name__)
-CORS(app)
+app = Quart(__name__)
+app = cors(app, allow_origin="*")  # 允许所有来源的跨域请求
 
 @app.route('/api/weather', methods=['POST'])
-def weather_query():
+async def weather_query():
     """
     接收前端的天气查询请求，并返回结果
     """
-    data = request.json
-    query = data.get('query', '')
-    streaming = data.get('streaming', True)
+    try:
+        logger.info("收到新的天气查询请求")
+        data = await request.get_json()
+        logger.info(f"请求数据: {data}")
+        
+        query = data.get('query', '')
+        streaming = data.get('streaming', True)
 
-    if not query:
-        return jsonify({"error": "查询内容不能为空"}), 400
+        if not query:
+            logger.warning("收到空查询请求")
+            return jsonify({"error": "查询内容不能为空"}), 400
 
-    def generate():
-        try:
-            # 使用 asyncio.run 调用异步函数
-            result = asyncio.run(run_weather_agent(query, streaming))
-            if isinstance(result, str):
-                yield json.dumps({"response": result}) + "\n"
-            else:
-                yield json.dumps({"error": str(result)}) + "\n"
-        except Exception as e:
-            yield json.dumps({"error": str(e)}) + "\n"
+        async def generate():
+            try:
+                logger.info("开始生成响应")
+                async for chunk in run_weather_agent(query, streaming):
+                    yield chunk
+            except Exception as e:
+                error_msg = f"处理请求时出错: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                yield json.dumps({"error": error_msg}) + "\n"
 
-    return Response(generate(), mimetype='text/event-stream')
+        logger.info("返回流式响应")
+        return Response(generate(), mimetype='text/event-stream')
+    except Exception as e:
+        logger.error(f"处理请求时发生错误: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
+
 
 # 程序入口点
 if __name__ == "__main__":
-    # 运行主函数
-    app.run(host="0.0.0.0", port=5000)
-    # asyncio.run(main())
+    logger.info("启动服务器...")
+    try:
+        app.run(host="0.0.0.0", port=5000, debug=True)
+    except Exception as e:
+        logger.error(f"服务器启动失败: {str(e)}\n{traceback.format_exc()}")

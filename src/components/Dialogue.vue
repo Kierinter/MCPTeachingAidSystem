@@ -6,6 +6,8 @@ const query = ref('');
 const messages = ref([]);
 const isLoading = ref(false);
 const currentResponse = ref('');
+const isStreaming = ref(false);
+const hasAddedToMessages = ref(false); // 用于标记是否已将响应添加到消息列表
 
 async function handleSendMessage() {
   if (!query.value.trim()) return;
@@ -17,13 +19,17 @@ async function handleSendMessage() {
   });
   
   isLoading.value = true;
+  isStreaming.value = true;
   currentResponse.value = ''; // 重置当前响应
+  hasAddedToMessages.value = false; // 重置标记
   
   try {
+    console.log('开始发送请求...');
     const response = await fetch('http://localhost:5000/api/weather', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
       },
       body: JSON.stringify({
         query: query.value,
@@ -31,44 +37,79 @@ async function handleSendMessage() {
       }),
     });
 
+    console.log('收到响应:', response);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('响应错误:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is null');
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        console.log('流式响应结束');
+        break;
+      }
       
-      const chunk = decoder.decode(value);
-      try {
-        const data = JSON.parse(chunk);
-        if (data.error) {
-          throw new Error(data.error);
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+      
+      // 按行处理缓冲区
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // 保留最后一个不完整的行
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        try {
+          const data = JSON.parse(line);
+          console.log('解析后的数据:', data);
+          
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          if (data.response) {
+            currentResponse.value += data.response;
+          }
+        } catch (e) {
+          console.error('解析数据块时出错:', e);
+          console.error('原始数据:', line);
         }
+      }
+    }
+
+    // 处理缓冲区中剩余的数据
+    if (buffer.trim()) {
+      try {
+        const data = JSON.parse(buffer);
         if (data.response) {
           currentResponse.value += data.response;
         }
       } catch (e) {
-        console.error('Error parsing chunk:', e);
+        console.error('解析最后的数据块时出错:', e);
       }
     }
 
-    // 添加完整的助手回复
-    messages.value.push({
-      role: 'assistant',
-      content: currentResponse.value
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    messages.value.push({
-      role: 'error',
-      content: `发送消息时出错: ${error.message}`
-    });
-  } finally {
+  }  
+  finally {
     isLoading.value = false;
+    isStreaming.value = false;
+    if (currentResponse.value && !hasAddedToMessages.value) {
+      messages.value.push({
+        role: 'assistant',
+        content: currentResponse.value
+      });
+      hasAddedToMessages.value = true;
+    }
     currentResponse.value = '';
     query.value = ''; // 清空输入框
   }
@@ -82,7 +123,7 @@ async function handleSendMessage() {
            :class="['message', message.role]">
         <div class="message-content" v-html="marked(message.content)"></div>
       </div>
-      <div v-if="isLoading" class="message assistant">
+      <div v-if="isStreaming && currentResponse && !hasAddedToMessages" class="message assistant">
         <div class="message-content" v-html="marked(currentResponse)"></div>
       </div>
     </div>
@@ -120,11 +161,24 @@ async function handleSendMessage() {
   background: #f5f5f5;
   border-radius: 8px;
   margin-bottom: 20px;
+  min-height: 300px;
 }
 
 .message {
   margin-bottom: 16px;
   max-width: 80%;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message.user {
@@ -145,6 +199,8 @@ async function handleSendMessage() {
   border-radius: 8px;
   background: white;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .message.user .message-content {
