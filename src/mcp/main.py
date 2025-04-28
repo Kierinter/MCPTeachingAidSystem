@@ -12,42 +12,38 @@ from typing import AsyncGenerator
 import logging
 
 from openai import AsyncOpenAI
-from agents.mcp import MCPServer, MCPServerStdio
+from agents.mcp import MCPServerStdio
 from openai.types.responses import ResponseTextDeltaEvent, ResponseContentPartDoneEvent
 from dotenv import load_dotenv
 
-# agent: agent 是SDK的核心构建块，定义 agent 的行为、指令和可用工具
-# Model: 抽象基类，定义模型的接口
-# ModelProvider: 提供模型实例，自定义配置模型
-# OpenAIChatCompletionsModel: OpenAI Chat Completions API的模型实现，用于与 OpenAI API 交互
-# RunConfig: 用于配置 agent 运行的配置参数
-# Runner: 用于运行 agent 的组件，负责管理 agent 的执行流程和上下文
-# set_tracing_disabled: 用于禁用追踪
-# ModelSettings: 配置模型的参数，如温度、top_p和工具选择策略等
 from agents import (
     Agent,
+    AgentHooks,
     Model,
+    ModelSettings,
     ModelProvider,
+    RunConfig,
+    RunContextWrapper,
+    Runner,
     OpenAIChatCompletionsModel,
     RunConfig,
     Runner,
     set_tracing_disabled,
-    ModelSettings,
+    function_tool,
 )
 
 load_dotenv()
 
-# 设置DeepSeek API密钥
 API_KEY = os.getenv("API_KEY")
-# 设置DeepSeek API基础URL
 BASE_URL = os.getenv("BASE_URL")
-# 设置DeepSeek API模型名称
 MODEL_NAME = os.getenv("MODEL_NAME")
+
 # 设置Puppeteer服务器配置
 # 从环境变量获取USE_PUPPETEER配置,默认为"false"
 # 将字符串转换为小写后与"true"比较,得到布尔值
 # 用于控制是否启用Puppeteer功能
 USE_PUPPETEER = os.getenv("USE_PUPPETEER", "false").lower() == "true"
+
 try:
     PUPPETEER_LAUNCH_OPTIONS = json.loads(os.getenv("PUPPETEER_LAUNCH_OPTIONS", "{}"))
 except json.JSONDecodeError:
@@ -60,10 +56,6 @@ if not BASE_URL:
 if not MODEL_NAME:
     raise ValueError("DeepSeek API模型名称未设置")
 
-if not os.getenv("OPENWEATHER_API_BASE"):
-    raise ValueError("OpenWeather API基础URL未设置")
-if not os.getenv("OPENWEATHER_API_KEY"):
-    raise ValueError("OpenWeather API密钥未设置")
 
 # 创建 DeepSeek API 客户端(使用兼容openai的接口)
 client = AsyncOpenAI(
@@ -143,7 +135,7 @@ puppeteer_tools = [
     }
 ]
 
-async def run_weather_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
+async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     weather_server = None
     puppeteer_server = None
     try:
@@ -267,7 +259,7 @@ async def run_weather_agent(query: str, streaming: bool = True) -> AsyncGenerato
                     model_settings=ModelSettings(
                         temperature=0.6,
                         top_p=0.9,
-                        max_tokens=40960,
+                        max_tokens=4096,
                         tool_choice="auto",
                         parallel_tool_calls=True,
                         truncation="auto"
@@ -349,7 +341,7 @@ app = Quart(__name__)
 app = cors(app, allow_origin="*")  # 允许所有来源的跨域请求
 
 @app.route('/api/weather', methods=['POST'])
-async def weather_query():
+async def agent_query():
     """
     接收前端的天气查询请求，并返回结果
     """
@@ -368,7 +360,7 @@ async def weather_query():
         async def generate():
             try:
                 logger.info("开始生成响应")
-                async for chunk in run_weather_agent(query, streaming):
+                async for chunk in run_agent(query, streaming):
                     yield chunk
             except Exception as e:
                 error_msg = f"处理请求时出错: {str(e)}\n{traceback.format_exc()}"
