@@ -1,12 +1,12 @@
 from __future__ import annotations
 from flask import Flask, request, jsonify, Response
-from flask_cors import CORS
 from quart import Quart, request, jsonify, Response
 from quart_cors import cors
 
 import asyncio
 import os
 import json
+import time
 import traceback
 from typing import AsyncGenerator
 import logging
@@ -38,16 +38,13 @@ API_KEY = os.getenv("API_KEY")
 BASE_URL = os.getenv("BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
-# 设置Puppeteer服务器配置
-# 从环境变量获取USE_PUPPETEER配置,默认为"false"
-# 将字符串转换为小写后与"true"比较,得到布尔值
-# 用于控制是否启用Puppeteer功能
-USE_PUPPETEER = os.getenv("USE_PUPPETEER", "false").lower() == "true"
+# 获取 playwright 启动选项
+USE_PLAYWRIGHT = os.getenv("USE_PLAYWRIGHT", "true").lower() == "true"
 
 try:
-    PUPPETEER_LAUNCH_OPTIONS = json.loads(os.getenv("PUPPETEER_LAUNCH_OPTIONS", "{}"))
+    PLAYWRIGHT_LAUNCH_OPTIONS = json.loads(os.getenv("PLAYWRIGHT_LAUNCH_OPTIONS", "{}"))
 except json.JSONDecodeError:
-    raise ValueError("PUPPETEER_LAUNCH_OPTIONS 格式无效")
+    raise ValueError("PLAYWRIGHT_LAUNCH_OPTIONS 格式无效")
 
 if not API_KEY:
     raise ValueError("DeepSeek API密钥未设置")
@@ -85,10 +82,10 @@ logging.getLogger('openai').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
 logging.getLogger('asyncio').setLevel(logging.WARNING)
 
-# 在main.py中添加puppeteer工具配置
-puppeteer_tools = [
+# 在main.py中添加playwright工具配置
+playwright_tools = [
     {
-        "name": "puppeteer_navigate",
+        "name": "playwright_navigate",
         "description": "导航到指定URL",
         "parameters": {
             "type": "object",
@@ -102,42 +99,44 @@ puppeteer_tools = [
         }
     },
     {
-        "name": "puppeteer_screenshot",
+        "name": "playwright_search",
+        "description": "执行搜索并提取结果",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "搜索关键词"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "playwright_screenshot",
         "description": "捕获页面截图",
         "parameters": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "截图名称"
-                },
                 "selector": {
                     "type": "string",
                     "description": "要截图的元素选择器"
-                }
-            },
-            "required": ["name"]
-        }
-    },
-    {
-        "name": "puppeteer_evaluate",
-        "description": "在浏览器中执行JavaScript代码",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "script": {
+                },
+                "path": {
                     "type": "string",
-                    "description": "要执行的JavaScript代码"
+                    "description": "保存截图的路径"
                 }
             },
-            "required": ["script"]
+            "required": ["path"]
         }
     }
 ]
 
 async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     weather_server = None
-    puppeteer_server = None
+    playwright_server = None
+    sql_server = None
+    
     try:
         # 初始化天气服务器
         logger.info("初始化天气服务器...")
@@ -155,114 +154,198 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
             cache_tools_list=True
         )
         
-        # 初始化Puppeteer服务器（如果需要）
-        if USE_PUPPETEER:
-            logger.info("初始化Puppeteer服务器...")
-            puppeteer_server = MCPServerStdio(
-                name="puppeteer",
+        # 初始化SQL服务器
+        logger.info("初始化SQL服务器...")
+        sql_server = MCPServerStdio(
+            name="sql",
+            params={
+                "command": "python",
+                "args": ["src/mcp/mysql_server.py"],
+                "env": {
+                    "PYTHONPATH": os.getcwd(),
+                    "DB_HOST": os.getenv("DB_HOST"),
+                    "DB_PORT": os.getenv("DB_PORT"),
+                    "DB_USER": os.getenv("DB_USER"),
+                    "DB_PASSWORD": os.getenv("DB_PASSWORD"),
+                    "DB_NAME": os.getenv("DB_NAME")
+                }
+            },
+            cache_tools_list=True
+        )
+        
+        # 记录数据库连接信息
+        logger.info(f"数据库连接信息:")
+        logger.info(f"  主机: {os.getenv('DB_HOST')}") 
+        logger.info(f"  端口: {os.getenv('DB_PORT')}")
+        logger.info(f"  数据库: {os.getenv('DB_NAME')}")
+        logger.info(f"  用户: {os.getenv('DB_USER')}")
+
+        # 初始化playwrit服务器（如果需要）
+        if USE_PLAYWRIGHT:
+            logger.info("初始化playwright服务器...")
+            playwright_server = MCPServerStdio(
+                name="playwright",
                 params={
-                    "command": "npx",
-                    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+                    "command": "python",
+                    "args": ["src/mcp/playwright_server.py"],  # 使用我们创建的服务器脚本
                     "env": {
-                        "PUPPETEER_LAUNCH_OPTIONS": json.dumps(PUPPETEER_LAUNCH_OPTIONS),
-                        "ALLOW_DANGEROUS": "true"
+                        "PYTHONPATH": os.getcwd(),
+                        "PLAYWRIGHT_LAUNCH_OPTIONS": json.dumps(PLAYWRIGHT_LAUNCH_OPTIONS)
                     }
                 },
                 cache_tools_list=True
             )
 
-            # 搜索并提取信息
-            async def search_and_extract(query: str):
-                try:
-                    # 1. 使用puppeteer_navigate访问搜索引擎
-                    await puppeteer_server.call_tool("puppeteer_navigate", {
-                        "url": f"https://www.google.com/search?q={query}"
-                    })
-                    
-                    # 2. 使用puppeteer_evaluate提取搜索结果
-                    results = await puppeteer_server.call_tool("puppeteer_evaluate", {
-                        "script": """
-                            return Array.from(document.querySelectorAll('div.g')).map(el => ({
-                                title: el.querySelector('h3')?.textContent,
-                                link: el.querySelector('a')?.href,
-                                snippet: el.querySelector('div.VwiC3b')?.textContent
-                            }))
-                        """
-                    })
-                    
-                    # 3. 如果需要，可以捕获页面截图
-                    await puppeteer_server.call_tool("puppeteer_screenshot", {
-                        "name": "search_results",
-                        "selector": "div#search"
-                    })
-                    
-                    return results
-                except Exception as e:
-                    logger.error(f"使用puppeteer工具时出错: {str(e)}")
-                    return None
-
-            # 尝试使用puppeteer搜索
-            try:
-                async with asyncio.timeout(30):  # 设置30秒超时
-                    search_results = await search_and_extract(query)
-                    if search_results:
-                        yield json.dumps({"response": f"搜索到相关信息：{json.dumps(search_results)}"}) + "\n"
-            except asyncio.TimeoutError:
-                logger.warning("搜索超时")
-            except Exception as e:
-                logger.error(f"搜索过程中出错: {str(e)}")
-
         try:
-            # 添加超时机制
-            async with asyncio.timeout(60):  # 设置60秒超时
+            # 增加超时时间到300秒
+            async with asyncio.timeout(300):  # 设置300秒超时
                 logger.info("正在连接到MCP服务器...")
-                # 手动连接到MCP服务器
-                await weather_server.connect()
-                logger.info("MCP服务器连接成功")
+                # 手动连接到MCP服务器，增加重试机制
+                max_retries = 3
+                retry_delay = 20
+                
+                for attempt in range(max_retries):
+                    try:
+                        await asyncio.wait_for(weather_server.connect(), timeout=30)
+                        logger.info("MCP服务器连接成功")
+                        break
+                    except asyncio.TimeoutError:
+                        if attempt == max_retries - 1:
+                            logger.error("MCP服务器连接超时，已达到最大重试次数")
+                            raise
+                        logger.warning(f"MCP服务器连接超时，正在进行第 {attempt + 1} 次重试...")
+                        await asyncio.sleep(retry_delay)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            logger.error(f"MCP服务器连接失败: {str(e)}")
+                            raise
+                        logger.warning(f"MCP服务器连接失败，正在进行第 {attempt + 1} 次重试...")
+                        await asyncio.sleep(retry_delay)
+                
+                for attempt in range(max_retries):
+                    try:
+                        await asyncio.wait_for(sql_server.connect(), timeout=30)
+                        logger.info("SQL服务器连接成功")
+                        break
+                    except asyncio.TimeoutError:
+                        if attempt == max_retries - 1:
+                            logger.error("SQL服务器连接超时，已达到最大重试次数")
+                            raise
+                        logger.warning(f"SQL服务器连接超时，正在进行第 {attempt + 1} 次重试...")
+                        await asyncio.sleep(retry_delay)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            logger.error(f"SQL服务器连接失败: {str(e)}")
+                            raise
+                        logger.warning(f"SQL服务器连接失败，正在进行第 {attempt + 1} 次重试...")
+                        await asyncio.sleep(retry_delay)
 
-                if USE_PUPPETEER:
-                    logger.info("正在连接到Puppeteer服务器...")
-                    await puppeteer_server.connect()
-                    logger.info("Puppeteer服务器连接成功")
+                if USE_PLAYWRIGHT:
+                    for attempt in range(max_retries):
+                        try:
+                            await asyncio.wait_for(playwright_server.connect(), timeout=30)
+                            logger.info("playwright服务器连接成功")
+                            break
+                        except asyncio.TimeoutError:
+                            if attempt == max_retries - 1:
+                                logger.error("playwright服务器连接超时，已达到最大重试次数")
+                                raise
+                            logger.warning(f"playwright服务器连接超时，正在进行第 {attempt + 1} 次重试...")
+                            await asyncio.sleep(retry_delay)
+                        except Exception as e:
+                            if attempt == max_retries - 1:
+                                logger.error(f"playwright服务器连接失败: {str(e)}")
+                                raise
+                            logger.warning(f"playwright服务器连接失败，正在进行第 {attempt + 1} 次重试...")
+                            await asyncio.sleep(retry_delay)
 
                 # 等待服务器连接成功并获取MCP服务可用工具列表
                 logger.info("正在获取可用工具列表...")
-                tools = await weather_server.list_tools()
-                logger.info("可用工具列表:")
-                for tool in tools:
-                    logger.info(f" - {tool.name}: {tool.description}")
-
-                if USE_PUPPETEER:
-                    puppeteer_tools = await puppeteer_server.list_tools()
-                    logger.info("Puppeteer工具列表:")
-                    for tool in puppeteer_tools:
+                try:
+                    tools = await asyncio.wait_for(weather_server.list_tools(), timeout=30)
+                    logger.info("可用工具列表:")
+                    for tool in tools:
                         logger.info(f" - {tool.name}: {tool.description}")
+                except asyncio.TimeoutError:
+                    logger.error("获取工具列表超时")
+                    raise
+                except Exception as e:
+                    logger.error(f"获取工具列表失败: {str(e)}")
+                    raise
 
-                # 创建agent实例
-                mcp_servers = [weather_server]
-                if USE_PUPPETEER:
-                    mcp_servers.append(puppeteer_server)
+                if USE_PLAYWRIGHT:
+                    try:
+                        playwright_tools_list = await asyncio.wait_for(playwright_server.list_tools(), timeout=30)
+                        logger.info("playwright工具列表:")
+                        for tool in playwright_tools_list:
+                            logger.info(f" - {tool.name}: {tool.description}")
+                    except asyncio.TimeoutError:
+                        logger.error("获取playwright工具列表超时")
+                        raise
+                    except Exception as e:
+                        logger.error(f"获取playwright工具列表失败: {str(e)}")
+                        raise
+                    # 搜索并提取信息
+                    # 添加到 run_agent 函数内部，search_and_extract 函数之前
+
+                    async def _do_search(query: str):
+                        """使用 Playwright 执行搜索并提取结果"""
+                        try:
+                            logger.info(f"开始搜索: {query}")
+                            
+                            # 1. 导航到搜索引擎
+                            await playwright_server.call_tool("playwright_navigate", {
+                                "url": "https://www.baidu.com"
+                            })
+                            
+                            # 2. 执行搜索
+                            search_results = await playwright_server.call_tool("playwright_search", {
+                                "query": query
+                            })
+                            
+                            # 3. 如有必要，捕获截图
+                            screenshot_path = f"./screenshots/search_{int(time.time())}.png"
+                            os.makedirs("./screenshots", exist_ok=True)
+                            
+                            await playwright_server.call_tool("playwright_screenshot", {
+                                "selector": "#content_left",
+                                "path": screenshot_path
+                            })
+                            
+                            logger.info(f"搜索完成，结果: {search_results}")
+                            return search_results
+                        except Exception as e:
+                            logger.error(f"搜索执行失败: {str(e)}")
+                            return None
+
+    # 创建agent实例
+                mcp_servers = [weather_server, sql_server]
+                if USE_PLAYWRIGHT:
+                    mcp_servers.append(playwright_server)  # 使用 playwright_server 而不是 playwright_tools
 
                 weather_agent = Agent(
                     name="生活助手",
                     instructions=(
-                        "你是一个专业且全能的生活助手，可以帮助用户查询和分析生活信息。"
-                        "你可以使用以下工具来获取信息："
-                        "1. 天气查询工具：获取实时天气信息"
-                        "2. Puppeteer工具："
-                        "   - 使用puppeteer_navigate访问网页"
-                        "   - 使用puppeteer_evaluate执行JavaScript代码来提取信息"
-                        "   - 使用puppeteer_screenshot捕获重要信息"
-                        "请根据用户的问题选择合适的工具组合来获取信息。"
+                        "你是一个专业且全能的生活助手，可以帮助用户查询和分析生活信息。\n"
+                        "你可以使用以下工具来获取信息：\n"
+                        "1. 天气查询工具：获取实时天气信息\n"
+                        "2. SQL查询工具：从数据库中获取信息\n"
+                        "3. Playwright工具：\n"
+                        "   - 使用playwright_navigate访问网页\n"
+                        "   - 使用playwright_search执行搜索并提取结果\n"
+                        "   - 使用playwright_screenshot捕获页面截图\n"
+                        "请根据用户的问题选择合适的工具组合来获取信息。\n"
+                        "请确保回答完整，不要中途停止。\n"
                     ),
                     mcp_servers=mcp_servers,
                     model_settings=ModelSettings(
-                        temperature=0.6,
-                        top_p=0.9,
-                        max_tokens=4096,
+                        temperature=0.8,
+                        top_p=0.95,
+                        max_tokens=8192,
                         tool_choice="auto",
                         parallel_tool_calls=True,
-                        truncation="auto"
+                        truncation="auto",
+                        # response_format={"type": "text"}
                     )
                 )
 
@@ -275,8 +358,9 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                         max_turns=10,
                         run_config=RunConfig(
                             model_provider=model_provider,
-                            trace_include_sensitive_data=True,
+                            trace_include_sensitive_data=False,
                             handoff_input_filter=None,
+                            timeout=300  # 增加超时时间到300秒
                         )
                     )
 
@@ -305,8 +389,9 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                         max_turns=10,
                         run_config=RunConfig(
                             model_provider=model_provider,
-                            trace_include_sensitive_data=True,
+                            trace_include_sensitive_data=False,
                             handoff_input_filter=None,
+                            timeout=300  # 增加超时时间到300秒
                         )
                     )
 
@@ -323,19 +408,29 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
     except Exception as e:
         yield json.dumps({"error": f"运行天气Agent时出错: {str(e)}"}) + "\n"
     finally:
-        # 清理服务器资源
-        cleanup_tasks = []
+        # 清理服务器资源 - 按顺序清理而不是并行清理
         if weather_server:
-            cleanup_tasks.append(weather_server.cleanup())
-        if puppeteer_server:
-            cleanup_tasks.append(puppeteer_server.cleanup())
-        
-        if cleanup_tasks:
             try:
-                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
-                logger.info("服务器资源清理成功！")
+                await asyncio.wait_for(weather_server.cleanup(), timeout=10)
+                logger.info("天气服务器资源已清理")
             except Exception as e:
-                logger.error(f"清理服务器资源时出错: {e}")
+                logger.error(f"清理天气服务器时出错: {str(e)}")
+        
+        if sql_server:
+            try:
+                await asyncio.wait_for(sql_server.cleanup(), timeout=10)
+                logger.info("SQL服务器资源已清理")
+            except Exception as e:
+                logger.error(f"清理SQL服务器时出错: {str(e)}")
+                
+        if playwright_server:
+            try:
+                await asyncio.wait_for(playwright_server.cleanup(), timeout=10)
+                logger.info("Playwright服务器资源已清理")
+            except Exception as e:
+                logger.error(f"清理Playwright服务器时出错: {str(e)}")
+        
+        logger.info("所有服务器资源清理完成")
 
 app = Quart(__name__)
 app = cors(app, allow_origin="*")  # 允许所有来源的跨域请求

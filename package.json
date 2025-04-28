@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc src/ts/index.ts --skipLibCheck --outDir dist",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,8 +20,11 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.3",
+    "autoprefixer": "^10.4.21",
     "eslint": "^9.25.1",
     "eslint-plugin-vue": "^10.0.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
     "vite": "^6.2.4",
     "vite-plugin-vue-devtools": "^7.7.2"
   },

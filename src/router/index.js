@@ -5,7 +5,6 @@ import Login from "../components/Login.vue";
 import Information from "../components/Information.vue";
 import Register from "../components/Register.vue";
 import Index from "../components/Index.vue";
-import Demo from "../components/demo.vue";
 
 const routes = [
   {
@@ -37,11 +36,6 @@ const routes = [
     path: "/index",
     name: "Index",
     component: Index,
-  },
-  {
-    path: "/demo",
-    name: "Demo",
-    component: Demo,
   }
 ];
 

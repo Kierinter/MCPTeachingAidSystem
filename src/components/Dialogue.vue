@@ -7,12 +7,11 @@ const messages = ref([]);
 const isLoading = ref(false);
 const currentResponse = ref('');
 const isStreaming = ref(false);
-const hasAddedToMessages = ref(false); // 用于标记是否已将响应添加到消息列表
+const hasAddedToMessages = ref(false);
 
 async function handleSendMessage() {
   if (!query.value.trim()) return;
   
-  // 添加用户消息
   messages.value.push({
     role: 'user',
     content: query.value
@@ -20,8 +19,8 @@ async function handleSendMessage() {
   
   isLoading.value = true;
   isStreaming.value = true;
-  currentResponse.value = ''; // 重置当前响应
-  hasAddedToMessages.value = false; // 重置标记
+  currentResponse.value = '';
+  hasAddedToMessages.value = false;
   
   try {
     console.log('开始发送请求...');
@@ -63,9 +62,8 @@ async function handleSendMessage() {
       const chunk = decoder.decode(value, { stream: true });
       buffer += chunk;
       
-      // 按行处理缓冲区
       const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 保留最后一个不完整的行
+      buffer = lines.pop() || '';
       
       for (const line of lines) {
         if (!line.trim()) continue;
@@ -87,7 +85,6 @@ async function handleSendMessage() {
       }
     }
 
-    // 处理缓冲区中剩余的数据
     if (buffer.trim()) {
       try {
         const data = JSON.parse(buffer);
@@ -99,44 +96,70 @@ async function handleSendMessage() {
       }
     }
 
-  }  
-  finally {
+  } catch (error) {
+    console.error('请求过程中出错:', error);
+    let errorMessage = '发送消息时出错';
+    if (error instanceof TypeError) {
+      errorMessage = '网络连接错误,请检查网络设置';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = '请求超时,请稍后重试';
+    } else if (error.message.includes('HTTP error')) {
+      errorMessage = '服务器响应错误,请联系管理员';
+    } else {
+      errorMessage = `${errorMessage}: ${error.message}`;
+    }
+    messages.value.push({
+      role: 'error', 
+      content: errorMessage
+    });
+  } finally {
     isLoading.value = false;
     isStreaming.value = false;
-    if (currentResponse.value && !hasAddedToMessages.value) {
+    if (currentResponse.value) {
       messages.value.push({
         role: 'assistant',
         content: currentResponse.value
       });
-      hasAddedToMessages.value = true;
     }
     currentResponse.value = '';
-    query.value = ''; // 清空输入框
+    query.value = '';
   }
 }
 </script>
 
 <template>
-  <div class="chat-container">
-    <div class="messages-container">
+  <div class="flex flex-col h-full max-w-4xl mx-auto p-4 md:p-6">
+    <div class="flex-1 overflow-y-auto bg-zinc-50 rounded-lg p-4 mb-4 min-h-[400px] shadow-sm">
       <div v-for="(message, index) in messages" :key="index" 
-           :class="['message', message.role]">
-        <div class="message-content" v-html="marked(message.content)"></div>
+           :class="[
+             'mb-4 max-w-[85%] animate-fade-in',
+             message.role === 'user' ? 'ml-auto' : '',
+             message.role === 'assistant' ? 'mr-auto' : '',
+             message.role === 'error' ? 'mr-auto' : ''
+           ]">
+        <div :class="[
+          'rounded-lg shadow-sm p-3 overflow-x-auto',
+          message.role === 'user' ? 'bg-primary-600 text-white' : '',
+          message.role === 'assistant' ? 'bg-white' : '',
+          message.role === 'error' ? 'bg-red-50 text-red-500 border border-red-200' : ''
+        ]" v-html="marked(message.content)"></div>
       </div>
-      <div v-if="isStreaming && currentResponse && !hasAddedToMessages" class="message assistant">
-        <div class="message-content" v-html="marked(currentResponse)"></div>
+      <div v-if="isStreaming" class="mr-auto mb-4 max-w-[85%] animate-fade-in">
+        <div class="bg-white rounded-lg shadow-sm p-3" v-html="marked(currentResponse)"></div>
       </div>
     </div>
     
-    <div class="input-container">
+    <div class="flex gap-3">
       <textarea
         v-model="query"
         placeholder="输入您的问题"
         @keyup.enter.ctrl="handleSendMessage"
+        class="flex-1 p-3 border border-gray-300 rounded-lg resize-none h-[60px] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
       ></textarea>
       <button 
         @click="handleSendMessage"
         :disabled="isLoading || !query.trim()"
+        class="px-6 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
       >
         {{ isLoading ? '发送中...' : '发送' }}
       </button>
@@ -144,33 +167,8 @@ async function handleSendMessage() {
   </div>
 </template>
 
-<style scoped>
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.messages-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  min-height: 300px;
-}
-
-.message {
-  margin-bottom: 16px;
-  max-width: 80%;
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
+<style>
+@keyframes fade-in {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -181,111 +179,33 @@ async function handleSendMessage() {
   }
 }
 
-.message.user {
-  margin-left: auto;
-}
-
-.message.assistant {
-  margin-right: auto;
-}
-
-.message.error {
-  margin-right: auto;
-  color: #ff4444;
-}
-
-.message-content {
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.message.user .message-content {
-  background: #007AFF;
-  color: white;
-}
-
-.message.assistant .message-content {
-  background: white;
-}
-
-.message.error .message-content {
-  background: #ffebee;
-  color: #ff4444;
-}
-
-.input-container {
-  display: flex;
-  gap: 10px;
-}
-
-textarea {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  resize: none;
-  height: 60px;
-  font-family: inherit;
-}
-
-button {
-  padding: 0 20px;
-  background: #007AFF;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-button:hover {
-  background: #0056b3;
-}
-
-button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+.animate-fade-in {
+  animation: fade-in 0.3s ease-in-out;
 }
 
 /* Markdown 样式 */
-.message-content :deep(pre) {
-  background: #f6f8fa;
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
+.message-content pre {
+  @apply bg-zinc-50 p-4 rounded-md overflow-x-auto my-2;
 }
 
-.message-content :deep(code) {
-  background: #f6f8fa;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-family: monospace;
+.message-content code {
+  @apply bg-zinc-50 px-1 py-0.5 rounded-md font-mono text-sm;
 }
 
-.message-content :deep(blockquote) {
-  border-left: 4px solid #dfe2e5;
-  padding-left: 16px;
-  margin-left: 0;
-  color: #6a737d;
+.message-content blockquote {
+  @apply border-l-4 border-gray-300 pl-4 ml-0 text-gray-600 my-2;
 }
 
-.message-content :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 16px 0;
+.message-content table {
+  @apply w-full border-collapse my-4;
 }
 
-.message-content :deep(th),
-.message-content :deep(td) {
-  border: 1px solid #dfe2e5;
-  padding: 6px 13px;
+.message-content th,
+.message-content td {
+  @apply border border-gray-300 p-2 text-left;
 }
 
-.message-content :deep(th) {
-  background: #f6f8fa;
+.message-content th {
+  @apply bg-zinc-50;
 }
 </style>

@@ -5,12 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aiomysql>=0.2.0",
     "flask>=3.1.0",
     "flask-cors>=5.0.1",
     "httpx>=0.28.1",
     "mcp[cli]>=1.6.0",
     "openai>=1.76.0",
     "openai-agents>=0.0.13",
+    "playwright>=1.51.0",
+    "pyjwt>=2.10.1",
+    "pymysql>=1.1.1",
     "python-dotenv>=1.1.0",
     "quart>=0.20.0",
     "quart-cors>=0.8.0",
