@@ -12,19 +12,20 @@ logger = logging.getLogger(__name__)
 mcp_servers = {}
 
 # 读取配置信息
-USE_PLAYWRIGHT = os.getenv("USE_PLAYWRIGHT", "true").lower() == "true"
+USE_WEB_BROWSER = os.getenv("USE_WEB_BROWSER", "true").lower() == "true"
+WEB_BROWSER_TYPE = os.getenv("WEB_BROWSER_TYPE", "puppeteer").lower()
 
 try:
-    PLAYWRIGHT_LAUNCH_OPTIONS = json.loads(os.getenv("PLAYWRIGHT_LAUNCH_OPTIONS", "{}"))
+    BROWSER_LAUNCH_OPTIONS = json.loads(os.getenv("BROWSER_LAUNCH_OPTIONS", "{}"))
 except json.JSONDecodeError:
-    raise ValueError("PLAYWRIGHT_LAUNCH_OPTIONS 格式无效")
+    raise ValueError("BROWSER_LAUNCH_OPTIONS 格式无效")
 
 # 服务器初始化和连接函数
 async def init_and_connect_server(server_type, force_new=False):
     """初始化指定类型的MCP服务器并连接
     
     Args:
-        server_type: 服务器类型 ('weather', 'sql', 'playwright', 'filesystem', 'pdf')
+        server_type: 服务器类型 ('weather', 'sql', 'browser', 'filesystem', 'pdf')
         force_new: 是否强制创建新的服务器实例
     
     Returns:
@@ -64,34 +65,24 @@ async def init_and_connect_server(server_type, force_new=False):
         logger.info(f"  数据库: {os.getenv('DB_NAME')}")
         logger.info(f"  用户: {os.getenv('DB_USER')}")
     
-    # elif server_type == "playwright" and USE_PLAYWRIGHT:
-    #     server = MCPServerStdio(
-    #         name="playwright",
-    #         params={
-    #             "command": "python",
-    #             "args": ["src/mcp/playwright_server.py"],
-    #             "env": {
-    #                 "PYTHONPATH": os.getcwd(),
-    #                 "PLAYWRIGHT_LAUNCH_OPTIONS": json.dumps(PLAYWRIGHT_LAUNCH_OPTIONS)
-    #             }
-    #         },
-    #         cache_tools_list=True
-    #     )
-    elif server_type == "playwright" and USE_PLAYWRIGHT:
-        server = MCPServerStdio(
-            name="playwright",
-            params={
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-playwright"],
-                "env": {
-                    "ALLOW_DANGEROUS": "true",  # 启用危险操作（如evaluate）
-                    "PUPPETEER_LAUNCH_OPTIONS": json.dumps({
-                    "headless": True  # 可根据需要切换为 False 查看浏览器动作
-                    })
-                }
-            },
-            cache_tools_list=True
-        )
+    elif server_type == "browser" and USE_WEB_BROWSER:
+        if WEB_BROWSER_TYPE == "puppeteer":
+            server = MCPServerStdio(
+                name="browser",
+                params={
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+                    "env": {
+                        "PUPPETEER_LAUNCH_OPTIONS": json.dumps(BROWSER_LAUNCH_OPTIONS)
+                    }
+                },
+                cache_tools_list=True
+            )
+            logger.info(f"Puppeteer 浏览器服务器初始化成功，启动选项: {BROWSER_LAUNCH_OPTIONS}")
+        else:
+            # 如果配置了其他浏览器类型，可以在这里添加
+            logger.error(f"不支持的浏览器类型: {WEB_BROWSER_TYPE}")
+            return None
 
     elif server_type == "filesystem":
         server = MCPServerStdio(

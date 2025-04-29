@@ -37,7 +37,6 @@ from mcp_server_controller import (
     cleanup_server,
     cleanup_all_servers,
     get_active_servers,
-    USE_PLAYWRIGHT
 )
 
 load_dotenv()
@@ -136,9 +135,7 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
         await init_and_connect_server("sql")
         await init_and_connect_server("filesystem")
         # await init_and_connect_server("pdf")
-        
-        # if USE_PLAYWRIGHT:
-        playwright_server = await init_and_connect_server("playwright")
+        await init_and_connect_server("browser")
         
         # 收集当前活跃的服务器
         active_servers = await get_active_servers()
