@@ -2,8 +2,7 @@ import os
 import json
 from mcp.server.fastmcp import FastMCP
 from playwright.async_api import async_playwright
-#logger
-# import logging
+import asyncio
 
 mcp = FastMCP("playwright")
 
@@ -11,27 +10,57 @@ mcp = FastMCP("playwright")
 browser = None
 context = None
 page = None
+playwright = None
 
 async def ensure_browser():
     """确保浏览器已启动"""
-    global browser, context, page
+    global browser, context, page, playwright
     
     if browser is None:
-        # 解析环境变量中的启动选项
-        launch_options = {}
         try:
-            launch_options_str = os.getenv("PLAYWRIGHT_LAUNCH_OPTIONS", "{}")
-            launch_options = json.loads(launch_options_str)
-        except json.JSONDecodeError:
-            print("警告：PLAYWRIGHT_LAUNCH_OPTIONS 格式无效，使用默认设置")
-            launch_options = {"headless": True}
-        
-        # 启动 Playwright
-        playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(**launch_options)
-        context = await browser.new_context()
-        page = await context.new_page()
-        print("Playwright 浏览器已启动")
+            # 解析环境变量中的启动选项
+            launch_options = {}
+            try:
+                launch_options_str = os.getenv("PLAYWRIGHT_LAUNCH_OPTIONS", "{}")
+                launch_options = json.loads(launch_options_str)
+            except json.JSONDecodeError:
+                print("警告：PLAYWRIGHT_LAUNCH_OPTIONS 格式无效，使用默认设置")
+                launch_options = {"headless": True}
+            
+            # 启动 Playwright
+            playwright = await async_playwright().start()
+            browser = await playwright.chromium.launch(**launch_options)
+            context = await browser.new_context()
+            page = await context.new_page()
+            print("Playwright 浏览器已启动")
+        except Exception as e:
+            print(f"启动Playwright浏览器时出错: {e}")
+            # 直接清理已创建的资源
+            if page:
+                try:
+                    await page.close()
+                except:
+                    pass
+                page = None
+            if context:
+                try:
+                    await context.close()
+                except:
+                    pass
+                context = None
+            if browser:
+                try:
+                    await browser.close()
+                except:
+                    pass
+                browser = None
+            if playwright:
+                try:
+                    await playwright.stop()
+                except:
+                    pass
+                playwright = None
+            raise
 
 @mcp.tool()
 async def playwright_navigate(url: str) -> str:
@@ -114,8 +143,16 @@ async def playwright_screenshot(path: str, selector: str = None) -> str:
         
         if selector:
             # 截取特定元素
-            element = await page.wait_for_selector(selector, timeout=5000)
-            await element.screenshot(path=path)
+            try:
+                element = await page.wait_for_selector(selector, timeout=5000)
+                if element:
+                    await element.screenshot(path=path)
+                else:
+                    await page.screenshot(path=path)
+                    return f"找不到选择器 '{selector}'，已截取整个页面: {path}"
+            except Exception as e:
+                await page.screenshot(path=path)
+                return f"截取元素时出错: {str(e)}，已截取整个页面: {path}"
         else:
             # 截取整个页面
             await page.screenshot(path=path)
@@ -127,35 +164,64 @@ async def playwright_screenshot(path: str, selector: str = None) -> str:
 # 清理函数
 async def cleanup():
     """清理 Playwright 资源"""
-    global browser, context, page
-    try:
-        if page:
+    global browser, context, page, playwright
+    
+    # 逐个清理资源，每个步骤都使用独立的try-except块
+    if page:
+        try:
             await page.close()
+            print("已关闭页面")
+        except Exception as e:
+            print(f"关闭页面时出错: {str(e)}")
+        finally:
             page = None
-        if context:
+            
+    if context:
+        try:
             await context.close()
+            print("已关闭上下文")
+        except Exception as e:
+            print(f"关闭上下文时出错: {str(e)}")
+        finally:
             context = None
-        if browser:
+            
+    if browser:
+        try:
             await browser.close()
+            print("已关闭浏览器")
+        except Exception as e:
+            print(f"关闭浏览器时出错: {str(e)}")
+        finally:
             browser = None
-        print("Playwright 资源已清理")
-    except Exception as e:
-        print(f"清理 Playwright 资源时出错: {str(e)}")
+            
+    if playwright:
+        try:
+            await playwright.stop()
+            print("已停止Playwright")
+        except Exception as e:
+            print(f"停止Playwright时出错: {str(e)}")
+        finally:
+            playwright = None
+            
+    print("Playwright 资源已清理")
 
-# # 程序退出时清理资源
-# import atexit
-# import asyncio
-
-# def cleanup_handler():
-#     loop = asyncio.get_event_loop()
-#     if loop.is_running():
-#         loop.create_task(cleanup())
-#     else:
-#         loop.run_until_complete(cleanup())
-
-# atexit.register(cleanup_handler)
+# Playwright 资源由 FastMCP 生命周期管理
+@mcp.on_shutdown
+async def shutdown_handler():
+    """在 MCP 服务器关闭时清理 Playwright 资源"""
+    await cleanup()
 
 # 主程序入口
 if __name__ == "__main__":
     print("启动 Playwright MCP 服务...")
-    mcp.run(transport='stdio')
+    try:
+        mcp.run(transport='stdio')
+    except Exception as e:
+        print(f"MCP服务器运行出错: {str(e)}")
+    finally:
+        # 确保在程序退出时清理资源
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(cleanup())
+        else:
+            loop.run_until_complete(cleanup())

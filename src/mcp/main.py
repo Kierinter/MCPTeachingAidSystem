@@ -1,5 +1,5 @@
 from __future__ import annotations
-from flask import Flask, request, jsonify, Response
+# from flask import Flask, request, jsonify, Response
 from quart import Quart, request, jsonify, Response
 from quart_cors import cors
 
@@ -27,7 +27,6 @@ from agents import (
     Runner,
     OpenAIChatCompletionsModel,
     RunConfig,
-    Runner,
     set_tracing_disabled,
     function_tool,
 )
@@ -66,6 +65,7 @@ class DeepseekModelProvider(ModelProvider):
 
     def get_model(self, model_name:str)->Model:
         return OpenAIChatCompletionsModel(model=model_name or MODEL_NAME ,openai_client=client)
+
     
 
 model_provider = DeepseekModelProvider()
@@ -132,7 +132,7 @@ playwright_tools = [
     }
 ]
 
-async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
+async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     weather_server = None
     playwright_server = None
     sql_server = None
@@ -143,12 +143,10 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
         weather_server = MCPServerStdio(
             name="weather",
             params={
-                "command": "python",
-                "args": ["src/mcp/weather.py"],
+                "command": "python",  # 修改为python而不是C:\\Windows\\System32\\cmd.exe
+                "args": ["src/mcp/weather.py"],  # 修复路径格式
                 "env": {
-                    "PYTHONPATH": os.getcwd(),
-                    "OPENWEATHER_API_BASE": os.getenv("OPENWEATHER_API_BASE"),
-                    "OPENWEATHER_API_KEY": os.getenv("OPENWEATHER_API_KEY")
+                    "PYTHONPATH": os.getcwd()
                 }
             },
             cache_tools_list=True
@@ -286,7 +284,6 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                         logger.error(f"获取playwright工具列表失败: {str(e)}")
                         raise
                     # 搜索并提取信息
-                    # 添加到 run_agent 函数内部，search_and_extract 函数之前
 
                     async def _do_search(query: str):
                         """使用 Playwright 执行搜索并提取结果"""
@@ -323,8 +320,8 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                 if USE_PLAYWRIGHT:
                     mcp_servers.append(playwright_server)  # 使用 playwright_server 而不是 playwright_tools
 
-                weather_agent = Agent(
-                    name="生活助手",
+                teaching_agent = Agent(
+                    name="教学助手",
                     instructions=(
                         "你是一个专业且全能的生活助手，可以帮助用户查询和分析生活信息。\n"
                         "你可以使用以下工具来获取信息：\n"
@@ -337,15 +334,15 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                         "请根据用户的问题选择合适的工具组合来获取信息。\n"
                         "请确保回答完整，不要中途停止。\n"
                     ),
+
                     mcp_servers=mcp_servers,
                     model_settings=ModelSettings(
                         temperature=0.8,
                         top_p=0.95,
-                        max_tokens=8192,
+                        max_tokens=4096,
                         tool_choice="auto",
                         parallel_tool_calls=True,
                         truncation="auto",
-                        # response_format={"type": "text"}
                     )
                 )
 
@@ -353,14 +350,14 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
 
                 if streaming:
                     result = Runner.run_streamed(
-                        weather_agent,
+                        teaching_agent,
                         input=query,
                         max_turns=10,
                         run_config=RunConfig(
                             model_provider=model_provider,
                             trace_include_sensitive_data=False,
                             handoff_input_filter=None,
-                            timeout=300  # 增加超时时间到300秒
+                            # timeout=300  # 增加超时时间到300秒
                         )
                     )
 
@@ -384,14 +381,14 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
                 else:
                     logger.info("使用非流式输出模式处理查询...")
                     result = await Runner.run(
-                        weather_agent,
+                        teaching_agent,
                         input=query,
                         max_turns=10,
                         run_config=RunConfig(
                             model_provider=model_provider,
                             trace_include_sensitive_data=False,
                             handoff_input_filter=None,
-                            timeout=300  # 增加超时时间到300秒
+                            # timeout=300  # 增加超时时间到300秒
                         )
                     )
 
@@ -408,40 +405,56 @@ async def run_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, N
     except Exception as e:
         yield json.dumps({"error": f"运行天气Agent时出错: {str(e)}"}) + "\n"
     finally:
-        # 清理服务器资源 - 按顺序清理而不是并行清理
+        tasks = []
+        
+        # 创建独立的清理任务
         if weather_server:
-            try:
-                await asyncio.wait_for(weather_server.cleanup(), timeout=10)
-                logger.info("天气服务器资源已清理")
-            except Exception as e:
-                logger.error(f"清理天气服务器时出错: {str(e)}")
+            async def cleanup_weather():
+                try:
+                    await weather_server.cleanup()
+                    logger.info("天气服务器资源已清理")
+                except Exception as e:
+                    logger.error(f"清理天气服务器时出错: {str(e)}")
+            tasks.append(asyncio.create_task(cleanup_weather()))
         
         if sql_server:
-            try:
-                await asyncio.wait_for(sql_server.cleanup(), timeout=10)
-                logger.info("SQL服务器资源已清理")
-            except Exception as e:
-                logger.error(f"清理SQL服务器时出错: {str(e)}")
+            async def cleanup_sql():
+                try:
+                    await sql_server.cleanup()
+                    logger.info("SQL服务器资源已清理")
+                except Exception as e:
+                    logger.error(f"清理SQL服务器时出错: {str(e)}")
+            tasks.append(asyncio.create_task(cleanup_sql()))
                 
         if playwright_server:
+            async def cleanup_playwright():
+                try:
+                    await playwright_server.cleanup()
+                    logger.info("playwright服务器资源已清理")
+                except Exception as e:
+                    logger.error(f"清理playwright服务器时出错: {str(e)}")
+            tasks.append(asyncio.create_task(cleanup_playwright()))
+        
+        # 等待所有清理任务完成，但不传播异常
+        if tasks:
             try:
-                await asyncio.wait_for(playwright_server.cleanup(), timeout=10)
-                logger.info("Playwright服务器资源已清理")
+                # 使用gather并设置return_exceptions=True避免异常传播
+                await asyncio.gather(*tasks, return_exceptions=True)
             except Exception as e:
-                logger.error(f"清理Playwright服务器时出错: {str(e)}")
+                logger.error(f"等待清理任务时发生错误: {str(e)}")
         
         logger.info("所有服务器资源清理完成")
 
 app = Quart(__name__)
 app = cors(app, allow_origin="*")  # 允许所有来源的跨域请求
 
-@app.route('/api/weather', methods=['POST'])
-async def agent_query():
+@app.route('/api/query', methods=['POST'])
+async def query_agent():
     """
-    接收前端的天气查询请求，并返回结果
+    接收前端的查询请求，调用teaching agent并返回结果
     """
     try:
-        logger.info("收到新的天气查询请求")
+        logger.info("收到新的查询请求")
         data = await request.get_json()
         logger.info(f"请求数据: {data}")
         
@@ -455,7 +468,7 @@ async def agent_query():
         async def generate():
             try:
                 logger.info("开始生成响应")
-                async for chunk in run_agent(query, streaming):
+                async for chunk in run_teaching_agent(query, streaming):
                     yield chunk
             except Exception as e:
                 error_msg = f"处理请求时出错: {str(e)}\n{traceback.format_exc()}"
@@ -468,6 +481,95 @@ async def agent_query():
         logger.error(f"处理请求时发生错误: {str(e)}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/topics', methods=['POST'])
+async def generate_topics():
+    """生成学习相关的话题"""
+    try:
+        # 从请求中获取用户输入（可选）
+        logger.info("收到新的话题生成请求")
+        data = await request.get_json()
+        user_input = data.get("input")
+        logger.debug(f"用户输入: {user_input}")
+
+        # 调用OpenAI API生成话题
+        try:
+            agent = Agent(
+                name = "话题生成助手",
+                instructions = "你是一个**专业的**学习助手，可以生成一些学习相关的话题。帮助生成**六个**学习相关的话题。话题应涵盖数学、物理、编程等领域，并且每个话题简洁明了，适合大学生学习。**只需要输出话题，不需要解释以及多余的回复。**",
+                mcp_servers = [],  # 不使用任何MCP服务器
+                model_settings = ModelSettings(
+                    temperature = 0.8,
+                    top_p = 0.95,
+                    max_tokens = 100,
+                    tool_choice = "auto",
+                    parallel_tool_calls = True,
+                    truncation = "auto",
+                )
+            )
+            response = await Runner.run(
+                agent,
+                input=user_input,
+                max_turns=3,
+                run_config=RunConfig(
+                    model_provider=model_provider,
+                    trace_include_sensitive_data=False,
+                    handoff_input_filter=None,
+                )
+            )
+        except Exception as e:
+            logger.error(f"调用API失败: {str(e)}")
+            raise
+
+        # 提取生成的内容
+        try:
+            topics_text = getattr(response, "final_output", None)
+            logger.info(f"原始话题文本: {topics_text}")
+            
+            # 处理话题文本
+            topics = []
+            if topics_text:
+                # Split by new lines and process each line
+                for line in topics_text.split('\n'):
+                    # Remove leading/trailing whitespace
+                    line = line.strip()
+                    # Skip empty lines
+                    if not line:
+                        continue
+                    
+                    # Remove numbering (like "1.", "2.") and common list markers
+                    clean_line = line
+                    for prefix in ['1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '0.', '#', '-', '*', '•']:
+                        if line.startswith(prefix):
+                            clean_line = line[len(prefix):].strip()
+                            break
+                    
+                    # Add the cleaned line to topics if it's not empty
+                    if clean_line:
+                        topics.append(clean_line)
+            
+            # 如果没有有效话题，使用默认话题
+            if not topics:
+                logger.warning("未生成有效话题，使用默认话题")
+                topics = [
+                    "高等数学中的极限概念如何理解？",
+                    "线性代数的特征值和特征向量有什么作用？",
+                    "如何解决难度较大的微分方程？",
+                    "概率论中的贝叶斯公式应用场景？",
+                    "数据结构中哈希表的工作原理是什么？"
+                    "C编程语言中的内存管理机制？",
+                ]
+            
+            logger.info(f"生成的话题: {topics}")
+            return jsonify({"topics": topics})
+        except Exception as e:
+            logger.error(f"处理话题文本时出错: {str(e)}")
+            raise
+
+    except Exception as e:
+        error_msg = f"处理话题生成请求时发生错误: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        return jsonify({"error": str(e)}), 500
 
 # 程序入口点
 if __name__ == "__main__":

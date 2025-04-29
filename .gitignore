@@ -29,3 +29,7 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+src/mcp/.env
+
+src/mcp/__pycache__/

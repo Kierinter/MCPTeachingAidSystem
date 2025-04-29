@@ -76,7 +76,7 @@ mcp = FastMCP(
 )
 
 
-@mcp.resource()
+@mcp.resource("schema://tables")
 async def get_all_tables(ctx: Context) -> str:
     """获取所有表的列表"""
     pool = ctx.lifespan_context.pool

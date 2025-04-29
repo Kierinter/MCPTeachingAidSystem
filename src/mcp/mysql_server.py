@@ -82,4 +82,9 @@ def main():
         mcp.run(transport="stdio")
 
 if __name__ == "__main__":
-    main()
+    print("启动 MySQL MCP 服务...")
+    try:
+        mcp.run(transport='stdio')
+    finally:
+        # 确保在程序退出时清理资源
+        asyncio.run(cleanup())
