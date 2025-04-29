@@ -133,11 +133,12 @@ playwright_tools = [
 async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     try:
         # 初始化各类服务器
-        # await init_and_connect_server("weather")
         await init_and_connect_server("sql")
+        await init_and_connect_server("filesystem")
+        # await init_and_connect_server("pdf")
         
         # if USE_PLAYWRIGHT:
-        #     playwright_server = await init_and_connect_server("playwright")
+        playwright_server = await init_and_connect_server("playwright")
         
         # 收集当前活跃的服务器
         active_servers = await get_active_servers()
@@ -149,6 +150,16 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
                 "你是一个专业且全能的教学助手，可以帮助教师查询知识、总计知识、分析学生信息。\n"
                 "请根据用户的问题选择合适的工具组合来获取信息。\n"
                 "请确保回答完整，不要中途停止。\n"
+                "你可以使用文件系统工具来读取和写入文件。如果没有指定文件夹，则默认读取 'doc' 文件夹\n"
+                "你可以使用PDF工具将对话内容或报告导出为PDF文件，特别在用户要求保存或打印对话时。\n"
+                "生成PDF时，默认保存到'reports'文件夹，确保先创建该文件夹。\n"
+                "牢记之前的对话内容，确保回答时考虑上下文。\n"
+                "当涉及数学公式时，请使用标准的 Markdown 数学公式格式：\n"
+                "1. 行内公式使用单个美元符号包裹，如：$E=mc^2$\n"
+                "2. 行间公式使用两个美元符号包裹，如：$$\\frac{d}{dx}(x^n) = nx^{n-1}$$\n"
+                "3. 或使用数学代码块，如：```math\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n```\n"
+                "请勿使用括号 () 包裹公式，因为这会导致渲染问题。\n"
+                "确保 LaTeX 公式中所有特殊字符都正确转义。\n"
             ),
             mcp_servers=active_servers,
             model_settings=ModelSettings(

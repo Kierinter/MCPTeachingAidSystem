@@ -3,6 +3,84 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { marked } from 'marked';
 import { useRouter } from 'vue-router';
 
+// 配置 marked 以支持数学公式
+const renderer = new marked.Renderer();
+const originalCodeRenderer = renderer.code.bind(renderer);
+
+renderer.code = function(code, language) {
+  // 处理数学公式块
+  if (language === 'math' || language === 'tex') {
+    return `<div class="math-block">\\[${code}\\]</div>`;
+  }
+  // 使用原始渲染器处理其他代码块
+  return originalCodeRenderer(code, language);
+};
+
+// 自定义渲染器解析并渲染标记的内容
+const customMarkdownRenderer = (content) => {
+  if (!content) return '';
+  
+  // 首先使用marked处理markdown内容
+  const html = marked(content, { renderer });
+  return html;
+};
+
+// MathJax 配置和渲染函数
+const configureMathJax = () => {
+  // 在全局范围内定义MathJax配置
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$']],
+      displayMath: [['$$', '$$']],
+      processEscapes: true,
+      processEnvironments: true
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+      ignoreHtmlClass: 'no-mathjax'
+    },
+    startup: {
+      typeset: false
+    }
+  };
+};
+
+// 延迟加载 MathJax 脚本
+const loadMathJax = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+    script.async = true;
+    script.onload = resolve;
+    document.head.appendChild(script);
+  });
+};
+
+// 渲染页面中的数学公式
+const renderMathJax = () => {
+  nextTick(() => {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      try {
+        window.MathJax.typesetPromise();
+      } catch (error) {
+        console.error('MathJax 渲染错误:', error);
+      }
+    }
+  });
+};
+
+// 初始化 MathJax
+const initMathJax = async () => {
+  // 配置 MathJax
+  configureMathJax();
+  
+  // 加载 MathJax 脚本
+  await loadMathJax();
+  
+  // 首次渲染
+  renderMathJax();
+};
+
 const router = useRouter();
 const query = ref('');
 const messages = ref([]);
@@ -97,13 +175,14 @@ const scrollToBottom = async () => {
   }
 };
 
-// 监听消息列表变化和流式响应内容变化，自动滚动到底部
+// 监听消息列表变化和流式响应内容变化，自动滚动到底部并渲染公式
 watch([messages, currentResponse], () => {
   scrollToBottom();
+  renderMathJax(); // 使用 MathJax 渲染
 }, { deep: true });
 
 // 从本地存储加载历史记录
-onMounted(() => {
+onMounted(async () => {
   const savedHistory = localStorage.getItem('chatHistory');
   if (savedHistory) {
     chatHistory.value = JSON.parse(savedHistory);
@@ -111,6 +190,9 @@ onMounted(() => {
   
   // 生成初始话题建议
   generateTopics();
+  
+  // 初始化 MathJax
+  await initMathJax();
 });
 
 // 加载对话时滚动到底部

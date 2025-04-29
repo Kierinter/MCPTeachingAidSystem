@@ -28,8 +28,17 @@ coverage
 *.sln
 *.sw?
 
+*.pdf
+*.md
+
 *.tsbuildinfo
 
 src/mcp/.env
 
 src/mcp/__pycache__/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

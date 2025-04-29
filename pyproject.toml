@@ -10,6 +10,8 @@ dependencies = [
     "flask>=3.1.0",
     "flask-cors>=5.0.1",
     "httpx>=0.28.1",
+    "markdown>=3.8",
+    "markdownify>=1.1.0",
     "mcp[cli]>=1.6.0",
     "openai>=1.76.0",
     "openai-agents>=0.0.13",
@@ -19,5 +21,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "quart>=0.20.0",
     "quart-cors>=0.8.0",
+    "reportlab>=4.4.0",
     "requests>=2.32.3",
+    "weasyprint>=65.1",
 ]

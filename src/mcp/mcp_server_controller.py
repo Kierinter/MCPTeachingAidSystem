@@ -24,7 +24,7 @@ async def init_and_connect_server(server_type, force_new=False):
     """初始化指定类型的MCP服务器并连接
     
     Args:
-        server_type: 服务器类型 ('weather', 'sql', 'playwright')
+        server_type: 服务器类型 ('weather', 'sql', 'playwright', 'filesystem', 'pdf')
         force_new: 是否强制创建新的服务器实例
     
     Returns:
@@ -64,19 +64,61 @@ async def init_and_connect_server(server_type, force_new=False):
         logger.info(f"  数据库: {os.getenv('DB_NAME')}")
         logger.info(f"  用户: {os.getenv('DB_USER')}")
     
+    # elif server_type == "playwright" and USE_PLAYWRIGHT:
+    #     server = MCPServerStdio(
+    #         name="playwright",
+    #         params={
+    #             "command": "python",
+    #             "args": ["src/mcp/playwright_server.py"],
+    #             "env": {
+    #                 "PYTHONPATH": os.getcwd(),
+    #                 "PLAYWRIGHT_LAUNCH_OPTIONS": json.dumps(PLAYWRIGHT_LAUNCH_OPTIONS)
+    #             }
+    #         },
+    #         cache_tools_list=True
+    #     )
     elif server_type == "playwright" and USE_PLAYWRIGHT:
         server = MCPServerStdio(
             name="playwright",
             params={
-                "command": "python",
-                "args": ["src/mcp/playwright_server.py"],
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-playwright"],
                 "env": {
-                    "PYTHONPATH": os.getcwd(),
-                    "PLAYWRIGHT_LAUNCH_OPTIONS": json.dumps(PLAYWRIGHT_LAUNCH_OPTIONS)
+                    "ALLOW_DANGEROUS": "true",  # 启用危险操作（如evaluate）
+                    "PUPPETEER_LAUNCH_OPTIONS": json.dumps({
+                    "headless": True  # 可根据需要切换为 False 查看浏览器动作
+                    })
                 }
             },
             cache_tools_list=True
         )
+
+    elif server_type == "filesystem":
+        server = MCPServerStdio(
+            name="filesystem",
+            params={
+                "command": "python",
+                "args": ["src/mcp/filesystem-server.py"],
+                "env": {
+                    "PYTHONPATH": os.getcwd()
+                }
+            },
+            cache_tools_list=True
+        )
+        logger.info(f"文件系统服务器初始化成功")
+    elif server_type == "pdf":
+        server = MCPServerStdio(
+            name="pdf",
+            params={
+                "command": "python",
+                "args": ["src/mcp/pdf_server.py"],
+                "env": {
+                    "PYTHONPATH": os.getcwd()
+                }
+            },
+            cache_tools_list=True
+        )
+        logger.info(f"PDF生成服务器初始化成功")
     else:
         logger.error(f"不支持的服务器类型: {server_type}")
         return None

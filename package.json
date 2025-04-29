@@ -12,6 +12,7 @@
     "@element-plus/icons-vue": "^2.3.1",
     "chart.js": "^4.4.9",
     "element-plus": "^2.9.8",
+    "katex": "^0.16.22",
     "marked": "^15.0.11",
     "openai": "^4.96.0",
     "pinia": "^3.0.2",
@@ -19,6 +20,8 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.3",
     "@vitejs/plugin-vue": "^5.2.3",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.25.1",
