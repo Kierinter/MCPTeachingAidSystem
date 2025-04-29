@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { marked } from 'marked';
 import { useRouter } from 'vue-router';
 
@@ -12,6 +12,7 @@ const isStreaming = ref(false);
 const hasAddedToMessages = ref(false);
 const chatHistory = ref([]);
 const showHistory = ref(false);
+const messagesContainer = ref(null); // 引用聊天消息容器
 // const suggestedTopics = ref([
 //   "高等数学中的极限概念如何理解？",
 //   "线性代数的特征值和特征向量有什么作用？",
@@ -88,10 +89,37 @@ function saveToHistory() {
   localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value));
 }
 
-// 加载历史对话
+// 自动滚动到底部的函数
+const scrollToBottom = async () => {
+  await nextTick();
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+  }
+};
+
+// 监听消息列表变化和流式响应内容变化，自动滚动到底部
+watch([messages, currentResponse], () => {
+  scrollToBottom();
+}, { deep: true });
+
+// 从本地存储加载历史记录
+onMounted(() => {
+  const savedHistory = localStorage.getItem('chatHistory');
+  if (savedHistory) {
+    chatHistory.value = JSON.parse(savedHistory);
+  }
+  
+  // 生成初始话题建议
+  generateTopics();
+});
+
+// 加载对话时滚动到底部
 function loadConversation(conversation) {
   messages.value = [...conversation.messages];
   showHistory.value = false;
+  
+  // 加载对话后滚动到底部
+  scrollToBottom();
 }
 
 // 清空当前对话
@@ -110,17 +138,6 @@ function deleteHistoryItem(id) {
   chatHistory.value = chatHistory.value.filter(item => item.id !== id);
   localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value));
 }
-
-// 从本地存储加载历史记录
-onMounted(() => {
-  const savedHistory = localStorage.getItem('chatHistory');
-  if (savedHistory) {
-    chatHistory.value = JSON.parse(savedHistory);
-  }
-  
-  // 生成初始话题建议
-  generateTopics();
-});
 
 // 组织历史记录按日期分组
 const groupedHistory = computed(() => {
@@ -143,6 +160,9 @@ async function handleSendMessage() {
     role: 'user',
     content: query.value
   });
+  
+  // 添加消息后滚动到底部
+  scrollToBottom();
   
   isLoading.value = true;
   isStreaming.value = true;
@@ -255,7 +275,7 @@ async function handleSendMessage() {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen max-w-6xl mx-auto">
+  <div class="flex flex-col h-screen w-screen max-w-full">
     <!-- 顶部导航栏 -->
     <div class="bg-yellow-400 shadow-sm p-4 flex justify-between items-center">
       <div class="flex items-center space-x-4">
@@ -281,7 +301,7 @@ async function handleSendMessage() {
       </button>
     </div>
     
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden w-full">
       <!-- 历史记录侧边栏 -->
       <div 
         v-if="showHistory" 
@@ -321,7 +341,7 @@ async function handleSendMessage() {
       </div>
       
       <!-- 主聊天区域 -->
-      <div class="flex-1 flex flex-col p-4 overflow-hidden">
+      <div class="flex-1 flex flex-col p-4 overflow-hidden w-full">
         <!-- 建议话题区 -->
         <div v-if="messages.length === 0" class="mb-6">
           <h2 class="text-xl font-semibold text-gray-800 mb-4 text-center">建议话题</h2>
@@ -348,20 +368,27 @@ async function handleSendMessage() {
         </div>
         
         <!-- 消息区域 -->
-        <div class="flex-1 overflow-y-auto bg-zinc-50 rounded-lg p-4 mb-4">
-          <div v-for="(message, index) in messages" :key="index" 
+        <div 
+          ref="messagesContainer"
+          class="flex-1 overflow-y-auto bg-zinc-50 rounded-lg p-4 mb-4 w-full"
+        >
+          <div class="flex flex-col">
+            <div v-for="(message, index) in messages" :key="index" 
                :class="[
-                 'mb-4 max-w-[85%] animate-fade-in',
-                 message.role === 'user' ? 'ml-auto' : '',
-                 message.role === 'assistant' ? 'mr-auto' : '',
-                 message.role === 'error' ? 'mr-auto' : ''
+
+               'mb-4 animate-fade-in flex',
+               message.role === 'user' ? 'justify-end' : 'justify-start'
                ]">
-            <div :class="[
-              'rounded-lg shadow-sm p-3 overflow-x-auto',
-              message.role === 'user' ? 'bg-primary-600 text-white' : '',
-              message.role === 'assistant' ? 'bg-white' : '',
-              message.role === 'error' ? 'bg-red-50 text-red-500 border border-red-200' : ''
-            ]" v-html="marked(message.content)"></div>
+              <div :class="[
+
+          'rounded-lg shadow-sm p-3 max-w-[85%] overflow-x-auto',
+          message.role === 'user' ? 'bg-primary-600 text-white' : '',
+          message.role === 'assistant' ? 'bg-white' : '',
+          message.role === 'error' ? 'bg-red-50 text-red-500 border border-red-200' : ''
+              ]">
+          <div class="message-content" v-html="marked(message.content)"></div>
+              </div>
+            </div>
           </div>
           <div v-if="isStreaming" class="mr-auto mb-4 max-w-[85%] animate-fade-in">
             <div class="bg-white rounded-lg shadow-sm p-3" v-html="marked(currentResponse)"></div>
@@ -369,7 +396,7 @@ async function handleSendMessage() {
         </div>
         
         <!-- 输入区域 -->
-        <div class="flex gap-3">
+        <div class="flex gap-3 w-full">
           <textarea
             v-model="query"
             placeholder="输入您的问题"
@@ -439,5 +466,23 @@ async function handleSendMessage() {
 
 .message-content th {
   @apply bg-zinc-50;
+}
+
+/* 添加全屏样式 */
+.h-screen {
+  height: 100vh;
+}
+
+.w-screen {
+  width: 100vw;
+}
+
+/* 确保滚动区域正确显示 */
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+.overflow-hidden {
+  overflow: hidden;
 }
 </style>

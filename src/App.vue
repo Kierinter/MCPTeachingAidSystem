@@ -1,10 +1,19 @@
-<script setup>
-// 不需要在这里导入组件，因为路由会处理组件的加载
-</script>
+import { RouterView } from "vue-router";
 
+// 添加全局样式，确保页面铺满屏幕
 <template>
-  <router-view></router-view>
+  <RouterView></RouterView>
 </template>
 
 <style>
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#app {
+  height: 100%;
+}
 </style>

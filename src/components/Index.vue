@@ -60,9 +60,9 @@ const features = ref([
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen w-screen max-w-full overflow-x-hidden bg-gray-50">
     <!-- 导航栏 -->
-    <nav class="bg-white shadow-sm">
+    <nav class="bg-white shadow-sm w-full">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
@@ -80,7 +80,7 @@ const features = ref([
     </nav>
 
     <!-- 英雄区 -->
-    <section class="bg-gradient-to-r from-primary-700 via-primary-800 to-primary-900 text-white py-20">
+    <section class="bg-gradient-to-r from-primary-700 via-primary-800 to-primary-900 text-white py-20 w-full">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex flex-col md:flex-row items-center">
           <div class="md:w-1/2 mb-8 md:mb-0">
@@ -105,7 +105,7 @@ const features = ref([
     </section>
 
     <!-- 特点 -->
-    <section id="features" class="py-16">
+    <section id="features" class="py-16 w-full">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-3xl font-bold text-center mb-12 text-gray-800">我们的特点</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -123,7 +123,7 @@ const features = ref([
     </section>
 
     <!-- 课程 -->
-    <section id="courses" class="py-16 bg-gray-100">
+    <section id="courses" class="py-16 bg-gray-100 w-full">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-3xl font-bold text-center mb-12 text-gray-800">热门课程</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -147,7 +147,7 @@ const features = ref([
     </section>
 
     <!-- CTA区域 -->
-    <section class="bg-primary-800 text-white py-16">
+    <section class="bg-primary-800 text-white py-16 w-full">
       <div class="max-w-4xl mx-auto px-4 text-center">
         <h2 class="text-3xl font-bold mb-6">准备好开始学习之旅了吗？</h2>
         <p class="text-xl mb-8 opacity-90">加入我们，体验AI驱动的个性化学习体验。</p>
@@ -163,7 +163,7 @@ const features = ref([
     </section>
 
     <!-- 页脚 -->
-    <footer class="bg-gray-800 text-white py-12">
+    <footer class="bg-gray-800 text-white py-12 w-full">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
@@ -197,3 +197,22 @@ const features = ref([
     </footer>
   </div>
 </template>
+
+<style scoped>
+/* 确保内容铺满屏幕 */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.w-screen {
+  width: 100vw;
+}
+
+.max-w-full {
+  max-width: 100%;
+}
+
+.overflow-x-hidden {
+  overflow-x: hidden;
+}
+</style>

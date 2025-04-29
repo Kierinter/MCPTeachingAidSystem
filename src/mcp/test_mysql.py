@@ -2,6 +2,11 @@ import pymysql
 import os
 from dotenv import load_dotenv
 
+# 注意: 使用SHA2密码认证需要安装cryptography包
+# 可以通过以下命令安装:
+# pip install cryptography
+# 或者使用uv:
+# uv install cryptography
 
 # 加载环境变量
 load_dotenv()
@@ -46,4 +51,4 @@ def test_mysql_connection():
         print(f"连接失败: {str(e)}")
 
 if __name__ == "__main__":
-    test_mysql_connection() 
+    test_mysql_connection()
