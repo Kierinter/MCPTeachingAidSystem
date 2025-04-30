@@ -5,6 +5,9 @@ import Login from "../components/Login.vue";
 import Information from "../components/Information.vue";
 import Register from "../components/Register.vue";
 import Index from "../components/Index.vue";
+import CheckIn from "@/components/CheckIn.vue";
+import PracticeProblem from "@/components/PracticeProblem.vue";
+import path from "path";
 
 const routes = [
   {
@@ -31,6 +34,16 @@ const routes = [
     path: "/information",
     name: "Information",
     component: Information,
+  },
+  {
+    path: "/checkin",
+    name: "CheckIn",
+    component: CheckIn,
+  },
+  {
+    path: "/practiceproblem",
+    name: "PracticeProblem",
+    component: PracticeProblem,
   },
   {
     path: "/index",

@@ -42,3 +42,15 @@ src/mcp/__pycache__/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Django
+*.pyc
+ai_tutor_backend/ai_teaching_aid/__pycache__
+db.sqlite3
+db.sqlite3-journal
+media/
+static/
+.env
+*.pot
+*.mo
+local_settingo

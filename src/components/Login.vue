@@ -1,7 +1,18 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { ref } from 'vue'
 
 const router = useRouter()
+
+// 表单数据
+const username = ref('')
+const password = ref('')
+const rememberMe = ref(false)
+
+// 状态管理
+const isSubmitting = ref(false)
+const errorMessage = ref('')
+const loginSuccess = ref(false)
 
 const goToRegister = () => {
   router.push('/register')
@@ -9,6 +20,63 @@ const goToRegister = () => {
 
 const goToDialogue = () => {
   router.push('/dialogue')
+}
+
+const handleLogin = async () => {
+  // 重置错误信息
+  errorMessage.value = ''
+  
+  // 表单验证
+  if (!username.value || !password.value) {
+    errorMessage.value = '请输入用户名和密码'
+    return
+  }
+  
+  // 设置提交状态
+  isSubmitting.value = true
+  
+  try {
+    // 调用登录API
+    const response = await fetch('http://localhost:8000/api/users/login/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: username.value,
+        password: password.value
+      }),
+    })
+    
+    const data = await response.json()
+    
+    if (!response.ok) {
+      // 处理错误响应
+      errorMessage.value = data.error || '登录失败，请检查用户名和密码'
+      isSubmitting.value = false // 确保错误时重置提交状态
+      return
+    }
+    
+    // 登录成功处理
+    console.log('登录成功:', data)
+    loginSuccess.value = true
+    
+    // 保存认证令牌和用户信息到本地存储
+    localStorage.setItem('authToken', data.token)
+    localStorage.setItem('user', JSON.stringify(data.user))
+    
+    // 跳转到对话页面
+    setTimeout(() => {
+      router.push('/dialogue')
+    }, 1000)
+    
+  } catch (error) {
+    console.error('登录请求错误:', error)
+    errorMessage.value = '网络错误，请稍后重试'
+    isSubmitting.value = false // 确保错误时重置提交状态
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -25,36 +93,53 @@ const goToDialogue = () => {
         <div class="p-8">
           <h2 class="text-2xl font-bold text-center text-gray-800 mb-8">登录</h2>
           
-          <div class="space-y-5">
+          <!-- 成功消息 -->
+          <div v-if="loginSuccess" class="mb-6 bg-green-100 text-green-800 p-3 rounded-lg text-center animate-fade-in">
+            登录成功，正在跳转...
+          </div>
+          
+          <!-- 错误消息 -->
+          <div v-if="errorMessage" class="mb-6 bg-red-100 text-red-800 p-3 rounded-lg text-center animate-fade-in">
+            {{ errorMessage }}
+          </div>
+          
+          <form @submit.prevent="handleLogin" class="space-y-5">
             <div>
               <input 
+                v-model="username"
                 type="text" 
                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="用户名" 
+                :disabled="isSubmitting"
+                required
               />
             </div>
             
             <div>
               <input 
+                v-model="password"
                 type="password" 
                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="密码" 
+                placeholder="密码"
+                :disabled="isSubmitting" 
+                required
               />
             </div>
             
             <div class="flex items-center justify-between">
               <label class="flex items-center text-gray-600">
-                <input type="checkbox" class="mr-2">
+                <input v-model="rememberMe" type="checkbox" class="mr-2">
                 记住我
               </label>
               <a href="#" class="text-primary-600 text-sm hover:underline">忘记密码？</a>
             </div>
             
             <button 
-              @click="goToDialogue"
-              class="w-full bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 transition-colors"
+              type="submit"
+              class="w-full bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 transition-colors disabled:bg-gray-400"
+              :disabled="isSubmitting"
             >
-              登录
+              {{ isSubmitting ? '登录中...' : '登录' }}
             </button>
             
             <p class="text-center text-gray-600 mt-4">
@@ -67,9 +152,26 @@ const goToDialogue = () => {
                 立即注册
               </a>
             </p>
-          </div>
+          </form>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+</style>

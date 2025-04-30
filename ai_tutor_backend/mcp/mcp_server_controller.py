@@ -25,7 +25,7 @@ async def init_and_connect_server(server_type, force_new=False):
     """初始化指定类型的MCP服务器并连接
     
     Args:
-        server_type: 服务器类型 ('weather', 'sql', 'browser', 'filesystem', 'pdf')
+        server_type: 服务器类型 ('weather', 'sql', 'browser', 'filesystem', 'pdf', 'local_web')
         force_new: 是否强制创建新的服务器实例
     
     Returns:
@@ -41,31 +41,8 @@ async def init_and_connect_server(server_type, force_new=False):
     logger.info(f"初始化{server_type}服务器...")
     
     # 根据服务器类型创建对应的服务器实例
-    if server_type == "sql":
-        server = MCPServerStdio(
-            name="sql",
-            params={
-                "command": "python",
-                "args": ["src/mcp/mysql_server.py"],
-                "env": {
-                    "PYTHONPATH": os.getcwd(),
-                    "DB_HOST": os.getenv("DB_HOST"),
-                    "DB_PORT": os.getenv("DB_PORT"),
-                    "DB_USER": os.getenv("DB_USER"),
-                    "DB_PASSWORD": os.getenv("DB_PASSWORD"),
-                    "DB_NAME": os.getenv("DB_NAME")
-                }
-            },
-            cache_tools_list=True
-        )
-        # 记录数据库连接信息
-        logger.info(f"数据库连接信息:")
-        logger.info(f"  主机: {os.getenv('DB_HOST')}") 
-        logger.info(f"  端口: {os.getenv('DB_PORT')}")
-        logger.info(f"  数据库: {os.getenv('DB_NAME')}")
-        logger.info(f"  用户: {os.getenv('DB_USER')}")
-    
-    elif server_type == "browser" and USE_WEB_BROWSER:
+
+    if server_type == "browser" and USE_WEB_BROWSER:
         if WEB_BROWSER_TYPE == "puppeteer":
             server = MCPServerStdio(
                 name="browser",
@@ -89,7 +66,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="filesystem",
             params={
                 "command": "python",
-                "args": ["src/mcp/filesystem-server.py"],
+                "args": ["ai_tutor_backend/mcp/filesystem-server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -110,6 +87,19 @@ async def init_and_connect_server(server_type, force_new=False):
             cache_tools_list=True
         )
         logger.info(f"PDF生成服务器初始化成功")
+    elif server_type == "local_web":
+        server = MCPServerStdio(
+            name="local_web",
+            params={
+                "command": "python",
+                "args": ["src/mcp/local_web_server.py"],
+                "env": {
+                    "PYTHONPATH": os.getcwd()
+                }
+            },
+            cache_tools_list=True
+        )
+        logger.info(f"本地网页服务器初始化成功")
     else:
         logger.error(f"不支持的服务器类型: {server_type}")
         return None
@@ -144,14 +134,13 @@ async def init_and_connect_server(server_type, force_new=False):
                 raise
             logger.warning(f"{server_type}服务器连接失败，正在进行第 {attempt + 1} 次重试...")
             await asyncio.sleep(retry_delay)
-    
+
     return None
 
 async def cleanup_server(server_type):
     """清理指定类型的MCP服务器资源
-    
     Args:
-        server_type: 服务器类型 ('weather', 'sql', 'playwright')
+        server_type: 服务器类型
     """
     global mcp_servers
     

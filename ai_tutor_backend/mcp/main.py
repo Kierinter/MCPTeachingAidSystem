@@ -1,5 +1,4 @@
 from __future__ import annotations
-# from flask import Flask, request, jsonify, Response
 from quart import Quart, request, jsonify, Response
 from quart_cors import cors
 
@@ -79,63 +78,16 @@ logging.getLogger('openai').setLevel(logging.WARNING)
 logging.getLogger('httpcore').setLevel(logging.WARNING)
 logging.getLogger('asyncio').setLevel(logging.WARNING)
 
-# 在main.py中添加playwright工具配置
-playwright_tools = [
-    {
-        "name": "playwright_navigate",
-        "description": "导航到指定URL",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "要访问的URL"
-                }
-            },
-            "required": ["url"]
-        }
-    },
-    {
-        "name": "playwright_search",
-        "description": "执行搜索并提取结果",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "搜索关键词"
-                }
-            },
-            "required": ["query"]
-        }
-    },
-    {
-        "name": "playwright_screenshot",
-        "description": "捕获页面截图",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "selector": {
-                    "type": "string",
-                    "description": "要截图的元素选择器"
-                },
-                "path": {
-                    "type": "string",
-                    "description": "保存截图的路径"
-                }
-            },
-            "required": ["path"]
-        }
-    }
-]
 
 async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     try:
         # 初始化各类服务器
-        await init_and_connect_server("sql")
+
+        # await init_and_connect_server("sql")
         await init_and_connect_server("filesystem")
         # await init_and_connect_server("pdf")
-        await init_and_connect_server("browser")
+        await init_and_connect_server("browser")#考虑 fetch 替换？
+
         
         # 收集当前活跃的服务器
         active_servers = await get_active_servers()
@@ -334,18 +286,6 @@ async def generate_topics():
                     # Add the cleaned line to topics if it's not empty
                     if clean_line:
                         topics.append(clean_line)
-            
-            # 如果没有有效话题，使用默认话题
-            if not topics:
-                logger.warning("未生成有效话题，使用默认话题")
-                topics = [
-                    "高等数学中的极限概念如何理解？",
-                    "线性代数的特征值和特征向量有什么作用？",
-                    "如何解决难度较大的微分方程？",
-                    "概率论中的贝叶斯公式应用场景？",
-                    "数据结构中哈希表的工作原理是什么？"
-                    "C编程语言中的内存管理机制？",
-                ]
             
             logger.info(f"生成的话题: {topics}")
             return jsonify({"topics": topics})

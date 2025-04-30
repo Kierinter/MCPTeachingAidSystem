@@ -91,14 +91,30 @@ const hasAddedToMessages = ref(false);
 const chatHistory = ref([]);
 const showHistory = ref(false);
 const messagesContainer = ref(null); // 引用聊天消息容器
-// const suggestedTopics = ref([
-//   "高等数学中的极限概念如何理解？",
-//   "线性代数的特征值和特征向量有什么作用？",
-//   "如何解决难度较大的微分方程？",
-//   "概率论中的贝叶斯公式应用场景？",
-//   "数据结构中哈希表的工作原理是什么？"
-// ]);
-const suggestedTopics = ref([]);
+
+// 组织历史记录按日期分组
+const groupedHistory = computed(() => {
+  const groups = {};
+  
+  chatHistory.value.forEach(item => {
+    if (!groups[item.date]) {
+      groups[item.date] = [];
+    }
+    groups[item.date].push(item);
+  });
+  
+  return groups;
+});
+
+// 预定义的话题建议
+const suggestedTopics = ref([
+  "高等数学中的极限概念如何理解？",
+  "线性代数的特征值和特征向量有什么作用？",
+  "如何解决难度较大的微分方程？",
+  "概率论中的贝叶斯公式应用场景？",
+  "数据结构中哈希表的工作原理是什么？",
+  "C编程语言中的内存管理机制？"
+]);
 
 // 生成新的建议话题
 async function generateTopics() {
@@ -129,7 +145,8 @@ async function generateTopics() {
       "化学键的类型及其特点？",
       "编程中递归算法的应用场景有哪些？",
       "如何分析古典文学作品的主题？",
-      "人工智能中的神经网络是如何工作的？"
+      "人工智能中的神经网络是如何工作的？",
+      "计算机网络基础协议有哪些？"
     ];
   } finally {
     isLoading.value = false;
@@ -188,8 +205,8 @@ onMounted(async () => {
     chatHistory.value = JSON.parse(savedHistory);
   }
   
-  // 生成初始话题建议
-  generateTopics();
+  // 不再初始时生成话题，使用预定义的话题
+  // generateTopics();
   
   // 初始化 MathJax
   await initMathJax();
@@ -220,20 +237,6 @@ function deleteHistoryItem(id) {
   chatHistory.value = chatHistory.value.filter(item => item.id !== id);
   localStorage.setItem('chatHistory', JSON.stringify(chatHistory.value));
 }
-
-// 组织历史记录按日期分组
-const groupedHistory = computed(() => {
-  const groups = {};
-  
-  chatHistory.value.forEach(item => {
-    if (!groups[item.date]) {
-      groups[item.date] = [];
-    }
-    groups[item.date].push(item);
-  });
-  
-  return groups;
-});
 
 async function handleSendMessage() {
   if (!query.value.trim()) return;
