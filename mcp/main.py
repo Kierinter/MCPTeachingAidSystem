@@ -74,19 +74,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 设置其他模块的日志级别
-logging.getLogger('openai').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('openai').setLevel(logging.INFO)
+logging.getLogger('httpcore').setLevel(logging.INFO)
+logging.getLogger('asyncio').setLevel(logging.INFO)
 
 
 async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
     try:
         # 初始化各类服务器
 
-        # await init_and_connect_server("sql")
+        # 初始化文件系统服务器
+        # filesystem服务器可以读取和写入任何文本文件，如txt, md, py, json, html, css, js等
+        # 主要功能包括:
+        # - list_files: 列出指定目录中的所有文件和文件夹
+        # - read_file: 读取文本文件内容
+        # - write_file: 写入内容到文本文件(会自动创建所需目录)
+        # - file_exists: 检查文件是否存在
         await init_and_connect_server("filesystem")
         # await init_and_connect_server("pdf")
         await init_and_connect_server("browser")#考虑 fetch 替换？
+        await init_and_connect_server("local_web")
 
         
         # 收集当前活跃的服务器
@@ -100,6 +107,7 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
                 "请根据用户的问题选择合适的工具组合来获取信息。\n"
                 "请确保回答完整，不要中途停止。\n"
                 "你可以使用文件系统工具来读取和写入文件。如果没有指定文件夹，则默认读取 'doc' 文件夹\n"
+                "文件系统工具可以读写各种文本文件(txt, md, py, js等)，但不支持二进制文件(如图片、视频)\n"
                 "你可以使用PDF工具将对话内容或报告导出为PDF文件，特别在用户要求保存或打印对话时。\n"
                 "生成PDF时，默认保存到'reports'文件夹，确保先创建该文件夹。\n"
                 "牢记之前的对话内容，确保回答时考虑上下文。\n"

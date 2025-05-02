@@ -22,6 +22,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/users/', include('users.urls')),  # 添加用户应用的URL
+    path('api/problems/', include('problems.urls')),  # 添加题库应用的URL
 ]
 
 # 在开发环境中提供媒体文件访问

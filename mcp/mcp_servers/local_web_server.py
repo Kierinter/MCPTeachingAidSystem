@@ -21,13 +21,14 @@ web_root = None
 
 # 系统页面映射关系
 SYSTEM_PAGES = {
-    "checkin": "/checkin",
-    "index": "/index",
-    "dialogue": "/dialogue",
-    "login": "/login",
-    "register": "/register",
-    "information": "/information",
-    "welcome": "/"
+    "checkin": "/checkin", #签到页面
+    "index": "/index", #主页
+    "dialogue": "/dialogue", #对话页面
+    "login": "/login", #登录页面
+    "register": "/register", #注册页面
+    "welcome": "/", #欢迎页面
+    "practiceproblem": "/practiceproblem", #刷题页面
+    "problemmanagement": "/problemmanagement", #题库管理页面
 }
 
 # 系统base URL

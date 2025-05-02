@@ -1,12 +1,13 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import { ref, onMounted } from 'vue';
+import { getCurrentUser, clearAuth, getAuthHeaders } from '../utils/auth';
 
 const router = useRouter();
-const userRole = ref('student'); // 默认为学生身份，可以是'student'或'teacher'
-const userName = ref('张三'); // 用户名，实际应用中应从登录状态获取
-const isCheckedIn = ref(false); // 签到状态
-const isAuthenticated = ref(true); // 是否已登录，实际应用中应从状态管理获取
+const userRole = ref('student'); 
+const userName = ref('');
+const isCheckedIn = ref(false);
+const isAuthenticated = ref(true); 
 
 // 学生专属数据
 const studentData = {
@@ -50,25 +51,74 @@ const goToPracticeProblem = () => {
   router.push('/practiceproblem');
 };
 
-const handleCheckIn = () => {
-  // 实际应用中这里应该调用API进行签到
-  isCheckedIn.value = true;
-  alert('签到成功！');
+const goToProblemManagement = () => {
+  router.push('/problemmanagement');
 };
 
-const switchRole = () => {
-  // 仅用于演示，切换身份
-  userRole.value = userRole.value === 'student' ? 'teacher' : 'student';
+const handleCheckIn = async () => {
+  try {
+    // 调用签到API
+    const response = await fetch('http://localhost:8080/api/users/checkin/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({
+        notes: '通过网页签到'
+      }),
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      if (data.detail === "今天已经签到过了") {
+        alert('您今天已经签到过了');
+      } else {
+        alert('签到失败，请稍后再试');
+      }
+      return;
+    }
+    
+    // 签到成功
+    isCheckedIn.value = true;
+    alert('签到成功！');
+    
+  } catch (error) {
+    console.error('签到请求错误:', error);
+    alert('网络错误，签到失败');
+  }
 };
 
 const logout = () => {
-  // 实际应用中应该清除登录状态
+  clearAuth(); // 清除认证信息
   router.push('/login');
 };
 
-onMounted(() => {
-  // 在实际应用中，这里应该检查用户是否已签到
-  // 例如从后端API获取当天的签到状态
+const checkTodayCheckIn = async () => {
+  try {
+    // 检查今日是否已签到
+    const response = await fetch('http://localhost:8080/api/users/checkin/today/', {
+      headers: getAuthHeaders()
+    });
+    
+    if (response.ok) {
+      isCheckedIn.value = true;
+    }
+  } catch (error) {
+    console.error('获取签到状态失败:', error);
+  }
+};
+
+onMounted(async () => {
+  // 获取当前登录用户信息
+  const user = getCurrentUser();
+  if (user) {
+    userName.value = user.real_name || user.username;
+    userRole.value = user.role || 'student';
+  }
+  
+  // 检查今日是否已签到
+  await checkTodayCheckIn();
 });
 </script>
 
@@ -189,11 +239,11 @@ onMounted(() => {
               <div class="text-green-600 text-lg font-medium">班级管理</div>
               <div class="text-sm text-gray-600">管理班级和学生</div>
             </div>
-            <div class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
+            <div @click="goToProblemManagement" class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
               <div class="text-purple-600 text-lg font-medium">题库管理</div>
               <div class="text-sm text-gray-600">管理题目资源</div>
             </div>
-            <div class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
+            <div @click= "goToDialogue" class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
               <div class="text-orange-600 text-lg font-medium">统计分析</div>
               <div class="text-sm text-gray-600">班级学习情况</div>
             </div>
@@ -240,18 +290,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 调试按钮，仅用于演示 -->
-      <div class="mt-6 text-center">
-        <button @click="switchRole" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">
-          切换身份 (当前: {{ userRole === 'student' ? '学生' : '教师' }})
-        </button>
-      </div>
     </div>
 
-    <footer class="bg-gray-800 text-white p-4 text-center">
-      <div class="container mx-auto">
-        <p>© 2023 AI教辅系统 版权所有</p>
-      </div>
-    </footer>
   </div>
 </template>

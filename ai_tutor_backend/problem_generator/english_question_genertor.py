@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import pandas as pd
 from openai import OpenAI
 
 # 替换为你的DeepSeek API密钥
@@ -10,21 +9,21 @@ DEEPSEEK_API_KEY ="sk-53430f09089a436dba84954547afd5fe"
 # 初始化DeepSeek API客户端
 deepseek = OpenAI(api_key=DEEPSEEK_API_KEY,base_url="https://api.deepseek.com")
 
-# 定义高中数学知识点列表
+# 定义高中英语知识点列表
 knowledge_points = [
-    "函数概念与性质", "一次函数", "二次函数", "幂函数", "指数函数", "对数函数", "三角函数",
-    "数列", "等差数列", "等比数列", "平面向量", "复数", "立体几何", "解析几何",
-    "平面直角坐标系", "直线与圆", "圆锥曲线", "椭圆", "双曲线", "抛物线",
-    "概率与统计", "排列组合", "二项式定理", "不等式", "三角恒等变换", "导数", "极限",
-    "推理与证明", "计数原理", "数学建模", "参数方程", "极坐标"
+    "时态和语态", "主谓一致", "非谓语动词", "虚拟语气", "定语从句", "状语从句", "名词性从句",
+    "倒装句", "强调句", "情态动词", "被动语态", "词汇辨析", "词性转换", "短语动词",
+    "介词短语", "冠词用法", "形容词和副词", "比较级和最高级", "反意疑问句", "感叹句",
+    "直接引语与间接引语", "连词用法", "同位语", "省略句", "习语表达", "阅读理解", "完形填空",
+    "写作技巧", "句子结构", "语篇衔接", "词汇语法综合"
 ]
 
 # 定义难度级别
 difficulty_levels = ["简单", "中等", "较难", "困难"]
 
 def generate_math_problem(knowledge_point, difficulty):
-    """使用DeepSeek API生成一道数学题"""
-    prompt = f"""请生成一道高中数学题目，满足以下要求：
+    """使用DeepSeek API生成一道英语练习题"""
+    prompt = f"""请生成一道高中英语题目，满足以下要求：
 1. 知识点: {knowledge_point}
 2. 难度级别: {difficulty}
 3. 题目要有明确的答案和解析
@@ -43,7 +42,7 @@ def generate_math_problem(knowledge_point, difficulty):
         response = deepseek.chat.completions.create(
             model="deepseek-chat", 
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
+            temperature=1.0,
             max_tokens=1500
         )
         
@@ -73,8 +72,8 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # 准备文件路径
-    csv_path = os.path.join(output_dir, "high_school_math_problems.csv")
-    json_path = os.path.join(output_dir, "high_school_math_problems.json")
+    csv_path = os.path.join(output_dir, "high_school_english_problems.csv")
+    json_path = os.path.join(output_dir, "high_school_english_problems.json")
     
     # 创建JSON文件并初始化为空列表
     with open(json_path, 'w', encoding='utf-8') as f:

@@ -66,7 +66,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="filesystem",
             params={
                 "command": "python",
-                "args": ["ai_tutor_backend/mcp/mcp_servers/filesystem-server.py"],
+                "args": ["mcp/mcp_servers/filesystem-server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -79,7 +79,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="pdf",
             params={
                 "command": "python",
-                "args": ["ai_tutor_backend/mcp/mcp_servers/pdf_server.py"],
+                "args": ["mcp/mcp_servers/pdf_server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -92,7 +92,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="local_web",
             params={
                 "command": "python",
-                "args": ["ai_tutor_backend/mcp/mcp_servers/local_web_server.py"],
+                "args": ["mcp/mcp_servers/local_web_server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -106,7 +106,7 @@ async def init_and_connect_server(server_type, force_new=False):
     
     # 尝试连接到服务器
     max_retries = 3
-    retry_delay = 20
+    retry_delay = 10
     
     for attempt in range(max_retries):
         try:
