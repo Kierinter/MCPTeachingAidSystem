@@ -50,7 +50,7 @@ const goToMain = () => {
           </div>
           <div class="bg-gray-50 p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
             <h3 class="text-xl font-semibold mb-3 text-primary-800">实时对话解题</h3>
-            <p class="text-gray-600">支持语音或文字提问，AI即时解析与指导。</p>
+            <p class="text-gray-600">支持直接向AI文字提问，AI即时解析与指导。</p>
           </div>
           <div class="bg-gray-50 p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
             <h3 class="text-xl font-semibold mb-3 text-primary-800">作业批改与反馈</h3>

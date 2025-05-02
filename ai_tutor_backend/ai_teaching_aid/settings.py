@@ -32,7 +32,8 @@ INSTALLED_APPS = [
     'corsheaders',
     
     # 自定义应用
-    'users',
+    'users.apps.UsersConfig',  # 明确指定应用配置
+    'problems',  # 添加problems应用
 ]
 
 MIDDLEWARE = [

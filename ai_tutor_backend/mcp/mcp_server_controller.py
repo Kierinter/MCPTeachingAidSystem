@@ -66,7 +66,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="filesystem",
             params={
                 "command": "python",
-                "args": ["ai_tutor_backend/mcp/filesystem-server.py"],
+                "args": ["ai_tutor_backend/mcp/mcp_servers/filesystem-server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -79,7 +79,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="pdf",
             params={
                 "command": "python",
-                "args": ["src/mcp/pdf_server.py"],
+                "args": ["ai_tutor_backend/mcp/mcp_servers/pdf_server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -92,7 +92,7 @@ async def init_and_connect_server(server_type, force_new=False):
             name="local_web",
             params={
                 "command": "python",
-                "args": ["src/mcp/local_web_server.py"],
+                "args": ["ai_tutor_backend/mcp/mcp_servers/local_web_server.py"],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }

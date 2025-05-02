@@ -9,8 +9,8 @@ const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const email = ref('')
-const school = ref('')
-const major = ref('')
+const real_name = ref('')
+const role = ref('student') // 默认选择学生身份
 
 // 状态管理
 const isSubmitting = ref(false)
@@ -26,7 +26,7 @@ const handleRegister = async () => {
   errorMessage.value = ''
   
   // 表单验证
-  if (!username.value || !password.value || !confirmPassword.value) {
+  if (!username.value || !password.value || !confirmPassword.value || !real_name.value) {
     errorMessage.value = '请填写必填字段'
     return
   }
@@ -46,7 +46,7 @@ const handleRegister = async () => {
   
   try {
     // 调用注册API
-    const response = await fetch('http://localhost:8000/api/users/register/', {
+    const response = await fetch('http://localhost:8080/api/users/register/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,9 +54,10 @@ const handleRegister = async () => {
       body: JSON.stringify({
         username: username.value,
         password: password.value,
+        password2: confirmPassword.value,
         email: email.value,
-        school: school.value,
-        major: major.value
+        real_name: real_name.value,
+        role: role.value
       }),
     })
     
@@ -70,6 +71,8 @@ const handleRegister = async () => {
         errorMessage.value = `密码错误: ${data.password}`
       } else if (data.email) {
         errorMessage.value = `邮箱错误: ${data.email}`
+      } else if (data.detail) {
+        errorMessage.value = data.detail
       } else {
         errorMessage.value = '注册失败，请检查输入信息'
       }
@@ -135,12 +138,52 @@ const handleRegister = async () => {
             
             <div>
               <input 
+                v-model="real_name"
+                type="text" 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="姓名 *" 
+                :disabled="isSubmitting"
+                required
+              />
+            </div>
+            
+            <div>
+              <input 
                 v-model="email"
                 type="email" 
                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="电子邮箱" 
                 :disabled="isSubmitting"
               />
+            </div>
+            
+            <!-- 用户身份选择 -->
+            <div>
+              <label class="block text-gray-700 text-sm font-medium mb-2">用户身份 *</label>
+              <div class="flex space-x-4">
+                <div class="flex items-center">
+                  <input 
+                    id="role-student" 
+                    v-model="role" 
+                    type="radio" 
+                    value="student" 
+                    class="h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :disabled="isSubmitting"
+                  />
+                  <label for="role-student" class="ml-2 block text-sm font-medium text-gray-700">学生</label>
+                </div>
+                <div class="flex items-center">
+                  <input 
+                    id="role-teacher" 
+                    v-model="role" 
+                    type="radio" 
+                    value="teacher" 
+                    class="h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
+                    :disabled="isSubmitting"
+                  />
+                  <label for="role-teacher" class="ml-2 block text-sm font-medium text-gray-700">教师</label>
+                </div>
+              </div>
             </div>
             
             <div>
@@ -163,26 +206,6 @@ const handleRegister = async () => {
                 placeholder="确认密码 *"
                 :disabled="isSubmitting" 
                 required
-              />
-            </div>
-            
-            <div>
-              <input 
-                v-model="school"
-                type="text" 
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="学校" 
-                :disabled="isSubmitting"
-              />
-            </div>
-            
-            <div>
-              <input 
-                v-model="major"
-                type="text" 
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="专业" 
-                :disabled="isSubmitting"
               />
             </div>
             
