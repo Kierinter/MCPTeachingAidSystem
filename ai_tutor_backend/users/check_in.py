@@ -1,9 +1,9 @@
 from django.db import models
-from users.models import User  # 更新导入路径
+from django.utils import timezone
 
 class CheckInRecord(models.Model):
     """签到记录模型"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='check_in_records', verbose_name="用户")
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='check_in_records', verbose_name="用户")
     check_in_date = models.DateField(auto_now_add=True, verbose_name="签到日期")
     check_in_time = models.DateTimeField(auto_now_add=True, verbose_name="签到时间")
     check_in_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="签到IP")

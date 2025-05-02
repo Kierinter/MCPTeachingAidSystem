@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     # 自定义应用
     'users.apps.UsersConfig',  # 明确指定应用配置
     'problems',  # 添加problems应用
+    'mcp',
 ]
 
 MIDDLEWARE = [

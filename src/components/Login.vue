@@ -1,8 +1,10 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ref } from 'vue'
+import { setAuth } from '../utils/auth'
 
 const router = useRouter()
+const route = useRoute()
 
 // 表单数据
 const username = ref('')
@@ -44,7 +46,7 @@ const handleLogin = async () => {
       },
       body: JSON.stringify({
         username: username.value,
-        password: password.value
+        password: password.value,
       }),
     })
     
@@ -52,28 +54,20 @@ const handleLogin = async () => {
     
     if (!response.ok) {
       // 处理错误响应
-      errorMessage.value = data.error || '登录失败，请检查用户名和密码'
-      isSubmitting.value = false // 确保错误时重置提交状态
+      errorMessage.value = data.detail || data.non_field_errors || '登录失败，请检查用户名和密码'
       return
     }
     
-    // 登录成功处理
-    console.log('登录成功:', data)
-    loginSuccess.value = true
+    // 登录成功，保存令牌和用户信息
+    setAuth(data.token, data.user)
     
-    // 保存认证令牌和用户信息到本地存储
-    localStorage.setItem('authToken', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    
-    // 跳转到对话页面
-    setTimeout(() => {
-      router.push('/dialogue')
-    }, 1000)
+    // 如果有重定向，则跳转到原目标页面，否则跳转到主页
+    const redirectPath = route.query.redirect || '/index'
+    router.push(redirectPath)
     
   } catch (error) {
     console.error('登录请求错误:', error)
     errorMessage.value = '网络错误，请稍后重试'
-    isSubmitting.value = false // 确保错误时重置提交状态
   } finally {
     isSubmitting.value = false
   }

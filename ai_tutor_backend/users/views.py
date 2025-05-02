@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
 
 from django.utils import timezone
 from django.contrib.auth import authenticate
@@ -37,10 +38,49 @@ class RegisterView(generics.CreateAPIView):
     """用户注册视图"""
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.AllowAny]  # 允许未认证用户访问
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        # 创建认证令牌
+        token, created = Token.objects.get_or_create(user=user)
+        
+        # 返回用户信息和令牌
+        return Response({
+            "user": UserSerializer(user).data,
+            "token": token.key
+        }, status=status.HTTP_201_CREATED)
+
+class LoginView(ObtainAuthToken):
+    """用户登录视图"""
+    permission_classes = [permissions.AllowAny]  # 允许未认证用户访问
+    
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data,
+                                           context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        token, created = Token.objects.get_or_create(user=user)
+        
+        # 返回用户信息和令牌
+        return Response({
+            'token': token.key,
+            'user': UserSerializer(user).data
+        })
+
+class UserProfileView(generics.RetrieveUpdateAPIView):
+    """用户个人信息视图"""
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]  # 需要认证
+    
+    def get_object(self):
+        return self.request.user
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated])  # 需要认证
 def current_user(request):
     """获取当前登录用户信息"""
     serializer = UserSerializer(request.user)
@@ -48,7 +88,7 @@ def current_user(request):
 
 class CheckInViewSet(viewsets.ModelViewSet):
     """签到记录视图集"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]  # 需要认证
     
     def get_queryset(self):
         user = self.request.user
@@ -79,33 +119,3 @@ class CheckInViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         else:
             return Response({"detail": "今天还未签到"}, status=status.HTTP_404_NOT_FOUND)
-
-class LoginView(APIView):
-    """用户登录视图"""
-    permission_classes = [AllowAny]
-    
-    def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        
-        if not username or not password:
-            return Response({'error': '请提供用户名和密码'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user = authenticate(username=username, password=password)
-        
-        if not user:
-            return Response({'error': '用户名或密码错误'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'user': UserSerializer(user).data,
-            'token': token.key
-        })
-
-class UserProfileView(APIView):
-    """获取用户信息视图"""
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
