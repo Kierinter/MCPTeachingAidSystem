@@ -44,8 +44,8 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         profile = StudentProfile.objects.create(
             student=user,
             student_number=student_number,
+            addmission_year=data.get('addmisson_year', ''),
             grade=data.get('grade', ''),
-            major=data.get('major', ''),
             class_name=data.get('class_name', ''),
             academic_level=data.get('academic_level', 'average'),
             weak_subjects=data.get('weak_subjects', ''),
@@ -58,8 +58,8 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         data = request.data.copy()
-        # 允许修改档案基本信息
-        for field in ['student_number', 'grade', 'major', 'class_name', 'academic_level', 'weak_subjects', 'notes']:
+        # 允许修改档案基本信ii
+        for field in ['student_number','addmisson_year', 'grade',  'class_name', 'academic_level', 'weak_subjects', 'notes']:
             if field in data:
                 setattr(instance, field, data[field])
         instance.save()

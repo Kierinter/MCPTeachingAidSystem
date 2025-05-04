@@ -2,44 +2,6 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 
-class Course(models.Model):
-    """课程模型"""
-    name = models.CharField(max_length=100, verbose_name="课程名称")
-    teacher = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.CASCADE, 
-        related_name='teaching_courses',
-        verbose_name="授课教师"
-    )
-    students = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        related_name='enrolled_courses',
-        verbose_name="选课学生"
-    )
-    location = models.CharField(max_length=100, verbose_name="上课地点")
-    time_start = models.TimeField(verbose_name="上课时间")
-    time_end = models.TimeField(verbose_name="下课时间")
-    week_days = models.CharField(max_length=20, verbose_name="上课日期", 
-                               help_text="以逗号分隔的数字，代表星期几，例如1,3,5")
-    
-    class Meta:
-        verbose_name = "课程"
-        verbose_name_plural = "课程"
-        
-    def __str__(self):
-        return self.name
-    
-    def get_student_count(self):
-        """获取学生人数"""
-        return self.students.count()
-    
-    def is_today_class(self):
-        """判断今天是否有课"""
-        today_weekday = timezone.now().weekday() + 1  # 0是星期一，转换为1-7
-        week_days_list = [int(day) for day in self.week_days.split(',')]
-        return today_weekday in week_days_list
-
-
 class CheckIn(models.Model):
     """签到活动模型"""
     STATUS_CHOICES = (
@@ -47,8 +9,7 @@ class CheckIn(models.Model):
         ('expired', '已结束'),
         ('cancelled', '已取消'),
     )
-    
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, verbose_name="课程")
+    class_name = models.CharField(max_length=50, verbose_name="班级名称", blank=True, default='')
     check_in_code = models.CharField(max_length=6, verbose_name="签到码")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     expires_at = models.DateTimeField(verbose_name="过期时间")
@@ -66,7 +27,7 @@ class CheckIn(models.Model):
         verbose_name_plural = "签到活动"
         
     def __str__(self):
-        return f"{self.course.name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.class_name} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
     
     def is_active(self):
         """判断签到是否有效"""

@@ -28,6 +28,7 @@ SYSTEM_PAGES = {
     "register": "/register", #注册页面
     "practiceproblem": "/practiceproblem", #刷题页面
     "problemmanagement": "/problemmanagement", #题库管理页面，教师独享
+    "studentmanagement": "/studentmanagement", #学生管理页面，教师独享
 
     "签到界面": "/checkin", #签到界面
     "对话界面": "/dialogue", #对话界面
@@ -36,6 +37,7 @@ SYSTEM_PAGES = {
     "主页": "/index", #欢迎界面
     "刷题界面": "/practiceproblem", #刷题界面
     "题库管理界面": "/problemmanagement", #题库管理界面，教师独享
+    "学生管理页面": "/studentmanagement", #学生管理页面，教师独享
 }
 
 # 系统base URL

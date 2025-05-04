@@ -243,7 +243,7 @@ onMounted(async () => {
               <div class="text-purple-600 text-lg font-medium">题库管理</div>
               <div class="text-sm text-gray-600">管理题目资源</div>
             </div>
-            <div @click="goToDialogue"
+            <div @click="goToCheckIn"
               class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
               <div class="text-orange-600 text-lg font-medium">课堂签到</div>
               <div class="text-sm text-gray-600">设置课堂签到</div>
