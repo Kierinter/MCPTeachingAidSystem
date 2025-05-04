@@ -9,11 +9,8 @@ class CheckInSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CheckIn
-        fields = ['id', 'check_in_code', 'created_at', 
+        fields = ['id', 'check_in_code', 'created_at', 'class_name',
                   'expires_at', 'status', 'description', 'is_active', 'time_left']
-        extra_kwargs = {
-            'check_in_code': {'write_only': True}
-        }
     
     def get_is_active(self, obj):
         return obj.is_active()
@@ -23,7 +20,7 @@ class CheckInSerializer(serializers.ModelSerializer):
 
 class CheckInCreateSerializer(serializers.Serializer):
     """创建签到的序列化器"""
-    course_id = serializers.IntegerField()
+    class_name = serializers.CharField(max_length=50)
     check_in_code = serializers.CharField(max_length=6)
     valid_minutes = serializers.IntegerField(min_value=1, max_value=180)
     description = serializers.CharField(allow_blank=True, required=False)
@@ -35,12 +32,9 @@ class CheckInCreateSerializer(serializers.Serializer):
     
     def create(self, validated_data):
         user = self.context['request'].user
-        # 这里假设课程校验已在视图层完成
-        from .models import Course
-        course = Course.objects.get(id=validated_data['course_id'])
         expires_at = timezone.now() + timezone.timedelta(minutes=validated_data['valid_minutes'])
         check_in = CheckIn.objects.create(
-            course=course,
+            class_name=validated_data['class_name'],
             check_in_code=validated_data['check_in_code'],
             expires_at=expires_at,
             status='active',
@@ -55,35 +49,32 @@ class StudentCheckInSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = StudentCheckIn
-        fields = ['id', 'student', 'student_name', 'check_in', 
-                  'check_in_time', 'check_in_time_display', 'status', 'notes', 'location']
+        fields = ['id', 'student', 'student_name', 'class_name', 'check_in','check_in_time', 'check_in_time_display', 'status', 'notes', 'location']
     
     def get_student_name(self, obj):
+        # 优先使用签到时提供的姓名，其次是用户的真实姓名，最后是用户名
+        if obj.student_name:
+            return obj.student_name
         return obj.student.real_name or obj.student.username
     
     def get_check_in_time_display(self, obj):
         return obj.check_in_time.strftime('%Y-%m-%d %H:%M:%S')
 
 class StudentCheckInSubmitSerializer(serializers.Serializer):
-    course_id = serializers.IntegerField()
     check_in_code = serializers.CharField(max_length=6)
-    location = serializers.CharField(max_length=200, required=False)
+    location = serializers.CharField(max_length=200, required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
     
     def validate(self, data):
         user = self.context['request'].user
-        course_id = data.get('course_id')
         check_in_code = data.get('check_in_code')
-        from .models import Course
+        
+        if not check_in_code:
+            raise serializers.ValidationError({"check_in_code": "签到码不能为空"})
+        
         try:
-            course = Course.objects.get(id=course_id)
-            if not course.students.filter(id=user.id).exists():
-                raise serializers.ValidationError({"course_id": "您不是该课程的学生"})
-        except Course.DoesNotExist:
-            raise serializers.ValidationError({"course_id": "课程不存在"})
-        try:
+            # 查找有效的签到活动
             check_in = CheckIn.objects.get(
-                course_id=course_id,
                 check_in_code=check_in_code,
                 status='active',
                 expires_at__gt=timezone.now()
@@ -91,28 +82,44 @@ class StudentCheckInSubmitSerializer(serializers.Serializer):
             self.context['check_in'] = check_in
         except CheckIn.DoesNotExist:
             raise serializers.ValidationError({"check_in_code": "签到码无效或已过期"})
+        
+        # 检查是否已签到
         if StudentCheckIn.objects.filter(check_in=check_in, student=user).exists():
             raise serializers.ValidationError({"check_in_code": "您已经签到过了"})
+            
         return data
     
     def create(self, validated_data):
         user = self.context['request'].user
         check_in = self.context['check_in']
         status = 'success'
-        course_time_start = check_in.course.time_start
-        now_time = timezone.localtime(timezone.now()).time()
-        today = timezone.localtime(timezone.now()).date()
-        course_start_datetime = timezone.datetime.combine(
-            today, 
-            course_time_start,
-            tzinfo=timezone.get_current_timezone()
-        )
-        late_threshold = course_start_datetime + timezone.timedelta(minutes=10)
-        if timezone.localtime(timezone.now()) > late_threshold:
+        
+        # 判断是否迟到
+        now = timezone.now()
+        # 签到创建时间加5分钟为正常签到时间
+        normal_time_limit = check_in.created_at + timezone.timedelta(minutes=5)
+        if now > normal_time_limit:
             status = 'late'
+        
+        # 获取学生姓名和班级信息
+        student_name = user.real_name if hasattr(user, 'real_name') else user.username
+        class_name = ''
+        
+        # 尝试从学生档案中获取班级信息
+        try:
+            from students.models import StudentProfile
+            profile = StudentProfile.objects.get(student=user)
+            class_name = profile.class_name
+        except:
+            # 如果获取失败，使用签到活动中的班级
+            class_name = check_in.class_name
+        
+        # 创建签到记录
         student_check_in = StudentCheckIn.objects.create(
             check_in=check_in,
             student=user,
+            student_name=student_name,
+            class_name=class_name,
             status=status,
             notes=validated_data.get('notes', ''),
             location=validated_data.get('location', '')
@@ -123,10 +130,11 @@ class CheckInHistorySerializer(serializers.ModelSerializer):
     check_in_time = serializers.SerializerMethodField()
     status = serializers.CharField(source='status')
     location = serializers.CharField(source='location')
+    check_in_id = serializers.IntegerField(source='check_in.id')
     
     class Meta:
         model = StudentCheckIn
-        fields = ['id', 'check_in_time', 'status', 'location']
+        fields = ['id', 'check_in_id', 'check_in_time', 'status', 'location']
     
     def get_check_in_time(self, obj):
         return obj.check_in_time.strftime('%Y-%m-%d %H:%M')

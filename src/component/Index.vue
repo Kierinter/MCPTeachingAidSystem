@@ -12,13 +12,13 @@ const isAuthenticated = ref(true);
 // 学生专属数据
 const studentData = {
   todayAssignments: [
-    { id: 1, title: '高等数学作业', deadline: '今天 23:59', subject: '数学' },
-    { id: 2, title: '物理实验报告', deadline: '明天 18:00', subject: '物理' }
+    { id: 1, title: '数学作业', deadline: '今天 23:59', subject: '数学' },
+    { id: 2, title: '物理作业', deadline: '明天 18:00', subject: '物理' }
   ],
   recentTopics: [
-    { id: 1, name: '微积分基础', progress: 75 },
-    { id: 2, name: '线性代数', progress: 45 },
-    { id: 3, name: '概率论', progress: 30 }
+    { id: 1, name: '数学：导数的定义', progress: 75 },
+    { id: 2, name: '英语：sesion4', progress: 60 },
+    { id: 3, name: '物理：洛伦兹力', progress: 40 }
   ]
 };
 
@@ -42,7 +42,9 @@ const goToDialogue = () => {
 const goToLogin = () => {
   router.push('/login');
 };
-
+const gotoStudentCheckIn = () => {
+  router.push('/studentcheckin');
+};
 const goToCheckIn = () => {
   router.push('/checkin');
 };
@@ -178,8 +180,9 @@ onMounted(async () => {
               <div class="text-sm text-gray-600">查看错题记录</div>
             </div>
             <div class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
-              <div class="text-orange-600 text-lg font-medium">学习报告</div>
-              <div class="text-sm text-gray-600">查看学习情况</div>
+              <div @click = "gotoStudentCheckIn"
+               class="text-orange-600 text-lg font-medium">课堂签到</div>
+              <div class="text-sm text-gray-600">执行课堂签到</div>
             </div>
           </div>
         </div>

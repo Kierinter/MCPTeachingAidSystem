@@ -40,6 +40,7 @@ class CheckInCreateAPIView(generics.CreateAPIView):
             'id': check_in.id,
             'check_in_code': check_in.check_in_code,
             'expires_at': check_in.expires_at,
+            'class_name': check_in.class_name,
             'message': '签到创建成功'
         }, status=status.HTTP_201_CREATED)
 
@@ -142,3 +143,16 @@ class EndCheckInAPIView(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK
         )
+
+class ActiveCheckInsAPIView(generics.ListAPIView):
+    """获取当前活动的签到"""
+    serializer_class = CheckInSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        now = timezone.now()
+        # 获取当前有效的签到活动
+        return CheckIn.objects.filter(
+            status='active',
+            expires_at__gt=now
+        ).order_by('-created_at')

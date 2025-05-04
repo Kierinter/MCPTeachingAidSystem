@@ -9,7 +9,7 @@ import PracticeProblem from "@/component/PracticeProblem.vue";
 import ProblemManagement from "@/component/ProblemManagement.vue";
 // import CheckInDetails from "@/component/CheckInDetails.vue";
 import StudentManagement  from "@/component/StudentManagement.vue";
-
+import StudentCheckIn from "@/component/StudentCheckIn.vue";
 const routes = [
   {
     path: "/",
@@ -64,6 +64,12 @@ const routes = [
     name: "StudentManagement",
     component: StudentManagement,
     meta: { requiresAuth: true, requiresTeacher: true },
+  },
+  {
+    path: "/studentcheckin",
+    name: "StudentCheckIn",
+    component: StudentCheckIn,
+    meta: { requiresAuth: true },
   },
   // {
   //   path: "/checkindetails",

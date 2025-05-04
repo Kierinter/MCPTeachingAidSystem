@@ -57,6 +57,8 @@ class StudentCheckIn(models.Model):
         related_name='checkin_records',
         verbose_name="学生"
     )
+    student_name = models.CharField(max_length=100, blank=True, verbose_name="学生姓名")
+    class_name = models.CharField(max_length=100, blank=True, verbose_name="班级")
     check_in_time = models.DateTimeField(auto_now_add=True, verbose_name="签到时间")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='success', verbose_name="状态")
     notes = models.TextField(blank=True, verbose_name="备注")
@@ -70,4 +72,4 @@ class StudentCheckIn(models.Model):
         
     def __str__(self):
         # 显示学生真实姓名而不是username
-        return f"{self.student.real_name} - {self.check_in_time.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.student_name or self.student.real_name or self.student.username} - {self.check_in_time.strftime('%Y-%m-%d %H:%M')}"

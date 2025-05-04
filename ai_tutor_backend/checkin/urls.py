@@ -6,6 +6,7 @@ from .views import (
     CheckInDetailAPIView,
     CheckInStudentsAPIView,
     EndCheckInAPIView,
+    ActiveCheckInsAPIView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('checkin/<int:pk>/', CheckInDetailAPIView.as_view(), name='checkin-detail'),
     path('checkin/<int:check_in_id>/students/', CheckInStudentsAPIView.as_view(), name='checkin-students'),
     path('checkin/end/<int:pk>/', EndCheckInAPIView.as_view(), name='end-checkin'),
+    path('checkin/active/', ActiveCheckInsAPIView.as_view(), name='active-checkins'),
 ]
