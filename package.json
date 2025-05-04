@@ -11,6 +11,7 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
     "@modelcontextprotocol/server-puppeteer": "^2025.4.7",
+    "axios": "^1.9.0",
     "chart.js": "^4.4.9",
     "element-plus": "^2.9.8",
     "katex": "^0.16.22",

@@ -34,11 +34,9 @@ INSTALLED_APPS = [
     # 自定义应用
     'users.apps.UsersConfig',  # 明确指定应用配置
     'problems',  # 添加problems应用
-<<<<<<< HEAD
     'problem_generator',  # 添加problem_generator应用
-=======
-    'mcp',
->>>>>>> a75fe23791b01d737d7ca1fa9d9c4b2e4595bbfa
+    'checkin',  # 添加签到应用
+    'students',  # 添加学生管理应用
 ]
 
 MIDDLEWARE = [

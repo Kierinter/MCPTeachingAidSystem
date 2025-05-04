@@ -4,10 +4,10 @@ import { ref, onMounted } from 'vue';
 import { getCurrentUser, clearAuth, getAuthHeaders } from '../utils/auth';
 
 const router = useRouter();
-const userRole = ref('student'); 
+const userRole = ref('student');
 const userName = ref('');
 const isCheckedIn = ref(false);
-const isAuthenticated = ref(true); 
+const isAuthenticated = ref(true);
 
 // 学生专属数据
 const studentData = {
@@ -25,9 +25,9 @@ const studentData = {
 // 教师专属数据
 const teacherData = {
   classesList: [
-    { id: 1, name: '高等数学A班', students: 45 },
-    { id: 2, name: '微积分B班', students: 38 },
-    { id: 3, name: '线性代数C班', students: 42 }
+    { id: 1, name: '高二1班', students: 36 },
+    { id: 2, name: '高二2班', students: 38 },
+
   ],
   pendingTasks: [
     { id: 1, title: '批改期中考试', count: 83, deadline: '3天后' },
@@ -47,12 +47,16 @@ const goToCheckIn = () => {
   router.push('/checkin');
 };
 
-const goToPracticeProblem = () => {
+const goToClasswork = () => {
   router.push('/practiceproblem');
 };
 
 const goToProblemManagement = () => {
   router.push('/problemmanagement');
+};
+
+const goToStudentManagement = () => {
+  router.push('/studentmanagement');
 };
 
 const handleCheckIn = async () => {
@@ -68,7 +72,7 @@ const handleCheckIn = async () => {
         notes: '通过网页签到'
       }),
     });
-    
+
     if (!response.ok) {
       const data = await response.json();
       if (data.detail === "今天已经签到过了") {
@@ -78,11 +82,11 @@ const handleCheckIn = async () => {
       }
       return;
     }
-    
+
     // 签到成功
     isCheckedIn.value = true;
     alert('签到成功！');
-    
+
   } catch (error) {
     console.error('签到请求错误:', error);
     alert('网络错误，签到失败');
@@ -100,7 +104,7 @@ const checkTodayCheckIn = async () => {
     const response = await fetch('http://localhost:8080/api/users/checkin/today/', {
       headers: getAuthHeaders()
     });
-    
+
     if (response.ok) {
       isCheckedIn.value = true;
     }
@@ -116,7 +120,7 @@ onMounted(async () => {
     userName.value = user.real_name || user.username;
     userRole.value = user.role || 'student';
   }
-  
+
   // 检查今日是否已签到
   await checkTodayCheckIn();
 });
@@ -140,23 +144,14 @@ onMounted(async () => {
     </header>
 
     <div class="container mx-auto px-6 py-8 flex-grow">
-      <!-- 签到卡片 -->
+      <!-- 对话入口卡片 -->
       <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <div class="flex justify-between items-center">
-          <h2 class="text-xl font-semibold text-gray-800">每日签到</h2>
-          <div class="flex space-x-4">
-            <button 
-              @click="handleCheckIn" 
-              class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-              :disabled="isCheckedIn"
-            >
-              {{ isCheckedIn ? '已签到' : '立即签到' }}
-            </button>
-            <button 
-              @click="goToCheckIn" 
-              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-            >
-              签到记录
+          <h2 class="text-xl font-semibold text-gray-800">AI 对话</h2>
+          <div>
+            <button @click="goToDialogue"
+              class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors">
+              进入对话
             </button>
           </div>
         </div>
@@ -168,13 +163,15 @@ onMounted(async () => {
         <div class="col-span-3 bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold text-gray-800 mb-4">快捷功能</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div @click="goToDialogue" class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
+            <div @click="goToDialogue"
+              class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
               <div class="text-blue-600 text-lg font-medium">AI对话</div>
               <div class="text-sm text-gray-600">向AI提问解题</div>
             </div>
-            <div @click="goToPracticeProblem" class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
-              <div class="text-green-600 text-lg font-medium">题库练习</div>
-              <div class="text-sm text-gray-600">自主选题练习</div>
+            <div @click="goToPracticeProblem"
+              class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
+              <div class="text-green-600 text-lg font-medium">课堂作业</div>
+              <div class="text-sm text-gray-600">完成课堂练习</div>
             </div>
             <div class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
               <div class="text-purple-600 text-lg font-medium">错题本</div>
@@ -191,13 +188,15 @@ onMounted(async () => {
         <div class="col-span-3 md:col-span-2 bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold text-gray-800 mb-4">今日作业</h2>
           <div v-if="studentData.todayAssignments.length > 0" class="space-y-4">
-            <div v-for="assignment in studentData.todayAssignments" :key="assignment.id" class="border-l-4 border-primary-500 pl-4 py-2">
+            <div v-for="assignment in studentData.todayAssignments" :key="assignment.id"
+              class="border-l-4 border-primary-500 pl-4 py-2">
               <div class="flex justify-between items-center">
                 <div>
                   <h3 class="font-medium">{{ assignment.title }}</h3>
                   <div class="text-sm text-gray-500">{{ assignment.subject }} · 截止: {{ assignment.deadline }}</div>
                 </div>
-                <button class="px-3 py-1 bg-primary-100 text-primary-700 rounded hover:bg-primary-200 transition-colors text-sm">
+                <button
+                  class="px-3 py-1 bg-primary-100 text-primary-700 rounded hover:bg-primary-200 transition-colors text-sm">
                   查看
                 </button>
               </div>
@@ -235,17 +234,24 @@ onMounted(async () => {
               <div class="text-blue-600 text-lg font-medium">布置作业</div>
               <div class="text-sm text-gray-600">创建新的作业</div>
             </div>
-            <div class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
+            <!-- <div class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
               <div class="text-green-600 text-lg font-medium">班级管理</div>
               <div class="text-sm text-gray-600">管理班级和学生</div>
-            </div>
-            <div @click="goToProblemManagement" class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
+            </div> -->
+            <div @click="goToProblemManagement"
+              class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
               <div class="text-purple-600 text-lg font-medium">题库管理</div>
               <div class="text-sm text-gray-600">管理题目资源</div>
             </div>
-            <div @click= "goToDialogue" class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
-              <div class="text-orange-600 text-lg font-medium">统计分析</div>
-              <div class="text-sm text-gray-600">班级学习情况</div>
+            <div @click="goToDialogue"
+              class="bg-orange-50 p-4 rounded-lg text-center cursor-pointer hover:bg-orange-100 transition-colors">
+              <div class="text-orange-600 text-lg font-medium">课堂签到</div>
+              <div class="text-sm text-gray-600">设置课堂签到</div>
+            </div>
+            <div @click="goToStudentManagement"
+              class="bg-red-50 p-4 rounded-lg text-center cursor-pointer hover:bg-red-100 transition-colors">
+              <div class="text-red-600 text-lg font-medium">学生管理</div>
+              <div class="text-sm text-gray-600">管理学生信息</div>
             </div>
           </div>
         </div>
@@ -257,9 +263,12 @@ onMounted(async () => {
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">班级名称</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">学生人数</th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                  <th scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">班级名称</th>
+                  <th scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">学生人数</th>
+                  <th scope="col"
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
@@ -282,7 +291,8 @@ onMounted(async () => {
             <div v-for="task in teacherData.pendingTasks" :key="task.id" class="border-l-4 border-yellow-500 pl-4 py-2">
               <h3 class="font-medium">{{ task.title }}</h3>
               <div class="text-sm text-gray-500">{{ task.count }} 项 · {{ task.deadline }}</div>
-              <button class="mt-2 px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors text-sm">
+              <button
+                class="mt-2 px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors text-sm">
                 处理
               </button>
             </div>

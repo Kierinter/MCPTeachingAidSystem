@@ -26,9 +26,16 @@ SYSTEM_PAGES = {
     "dialogue": "/dialogue", #对话页面
     "login": "/login", #登录页面
     "register": "/register", #注册页面
-    "welcome": "/", #欢迎页面
     "practiceproblem": "/practiceproblem", #刷题页面
-    "problemmanagement": "/problemmanagement", #题库管理页面
+    "problemmanagement": "/problemmanagement", #题库管理页面，教师独享
+
+    "签到界面": "/checkin", #签到界面
+    "对话界面": "/dialogue", #对话界面
+    "登录界面": "/login", #登录界面
+    "注册界面": "/register", #注册界面
+    "主页": "/index", #欢迎界面
+    "刷题界面": "/practiceproblem", #刷题界面
+    "题库管理界面": "/problemmanagement", #题库管理界面，教师独享
 }
 
 # 系统base URL

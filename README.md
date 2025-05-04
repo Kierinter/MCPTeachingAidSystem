@@ -51,13 +51,20 @@ uv pip install -e .
 ```
 
 2. 配置环境变量:
-   项目已包含基本的`.env`文件，如需修改可调整`src/mcp/.env`中的设置。
+   项目已包含基本的`.env`文件，如需修改可调整`mcp/.env`中的设置。
 
-3. 启动后端服务:
+3. 启动MCP服务:
 
 ```bash
-cd src/mcp
+cd mcp
 python main.py
+```
+
+4. 启动后端服务:
+
+```bash
+
+python run_server.py
 ```
 
 ### 前端设置
@@ -83,11 +90,12 @@ npm run build
 ## 项目结构
 
 - **src/components**: Vue组件，包含对话界面、登录页等
-- **src/mcp**: MCP服务器实现
+- **/mcp**: MCP服务器实现
   - main.py: 核心服务器和Agent集成
-  - mysql_server.py: 数据库MCP服务
   - pdf_server.py: PDF生成服务
   - filesystem-server.py: 文件管理服务
+  - browser-server.py: 网页浏览服务
+  - local_web_server.py: 本地网页跳转服务
 - **src/router**: 前端路由配置
 - **src/agents**: Agent实现和控制逻辑
 - **src/assets**: 静态资源
@@ -99,3 +107,8 @@ npm run build
 
 - `test_agent_connection.py`: 测试与Agent的连接
 - `test_mysql.py`: 验证数据库连接
+
+### 题库生成与导入
+
+题库生成和导入功能可以通过`题库生成器`模块实现。用户可以根据需要生成不同类型的题目，并将其导入到系统中进行使用。
+

@@ -1,12 +1,14 @@
 import { createRouter, createWebHistory } from "vue-router";
-import Welcome from "../components/Welcome.vue";
-import Login from "../components/Login.vue";
-import Register from "../components/Register.vue";
-import Index from "../components/Index.vue";
-import Dialogue from "../components/Dialogue.vue";
-import CheckIn from "../components/CheckIn.vue";
-import PracticeProblem from "../components/PracticeProblem.vue";
-import ProblemManagement from "../components/ProblemManagement.vue";
+import Welcome from "@/component/Welcome.vue";
+import Login from "@/component/Login.vue";
+import Register from "@/component/Register.vue";
+import Index from "@/component/Index.vue";
+import Dialogue from "@/component/Dialogue.vue";
+import CheckIn from "@/component/CheckIn.vue";
+import PracticeProblem from "@/component/PracticeProblem.vue";
+import ProblemManagement from "@/component/ProblemManagement.vue";
+import CheckInDetails from "@/component/CheckInDetails.vue";
+import StudentManagement  from "@/component/StudentManagement.vue";
 
 const routes = [
   {
@@ -56,6 +58,18 @@ const routes = [
     name: "ProblemManagement",
     component: ProblemManagement,
     meta: { requiresAuth: true, requiresTeacher: true },
+  },
+  {
+    path: "/studentmanagement",
+    name: "StudentManagement",
+    component: StudentManagement,
+    meta: { requiresAuth: true, requiresTeacher: true },
+  },
+  {
+    path: "/checkindetails",
+    name: "CheckInDetails",
+    component: CheckInDetails,
+    meta: { requiresAuth: true},
   },
 ];
 

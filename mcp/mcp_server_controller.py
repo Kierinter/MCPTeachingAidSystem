@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import os
+import sys
 import json
 import logging
 from agents.mcp import MCPServerStdio
@@ -19,6 +20,9 @@ try:
     BROWSER_LAUNCH_OPTIONS = json.loads(os.getenv("BROWSER_LAUNCH_OPTIONS", "{}"))
 except json.JSONDecodeError:
     raise ValueError("BROWSER_LAUNCH_OPTIONS 格式无效")
+
+# 使用当前Python解释器路径
+PYTHON_EXECUTABLE = sys.executable
 
 # 服务器初始化和连接函数
 async def init_and_connect_server(server_type, force_new=False):
@@ -62,11 +66,16 @@ async def init_and_connect_server(server_type, force_new=False):
             return None
 
     elif server_type == "filesystem":
+        # 获取文件系统服务器脚本的绝对路径
+        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "mcp_servers", "filesystem-server.py"))
+        logger.info(f"使用Python解释器: {PYTHON_EXECUTABLE}")
+        logger.info(f"文件系统脚本路径: {script_path}")
+        
         server = MCPServerStdio(
             name="filesystem",
             params={
-                "command": "python",
-                "args": ["mcp/mcp_servers/filesystem-server.py"],
+                "command": PYTHON_EXECUTABLE,
+                "args": [script_path],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -75,11 +84,12 @@ async def init_and_connect_server(server_type, force_new=False):
         )
         logger.info(f"文件系统服务器初始化成功")
     elif server_type == "pdf":
+        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "mcp_servers", "pdf_server.py"))
         server = MCPServerStdio(
             name="pdf",
             params={
-                "command": "python",
-                "args": ["mcp/mcp_servers/pdf_server.py"],
+                "command": PYTHON_EXECUTABLE,
+                "args": [script_path],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }
@@ -88,11 +98,12 @@ async def init_and_connect_server(server_type, force_new=False):
         )
         logger.info(f"PDF生成服务器初始化成功")
     elif server_type == "local_web":
+        script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "mcp_servers", "local_web_server.py"))
         server = MCPServerStdio(
             name="local_web",
             params={
-                "command": "python",
-                "args": ["mcp/mcp_servers/local_web_server.py"],
+                "command": PYTHON_EXECUTABLE,
+                "args": [script_path],
                 "env": {
                     "PYTHONPATH": os.getcwd()
                 }

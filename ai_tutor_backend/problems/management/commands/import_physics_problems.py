@@ -1,49 +1,46 @@
+import os
+import json
+import pandas as pd
 from django.core.management.base import BaseCommand
 from problems.models import Subject, Topic, Problem
-import json
-import os
 
 class Command(BaseCommand):
-    help = '从JSON文件导入高中英语题目'
+    help = '从JSON或CSV文件导入高中物理题目'
 
     def add_arguments(self, parser):
-        parser.add_argument('file_path', type=str, help='JSON文件的路径')
+        parser.add_argument('file_path', type=str, help='JSON或CSV文件的路径')
+        parser.add_argument('--format', type=str, default='json', help='文件格式(json或csv)')
 
     def handle(self, *args, **options):
         file_path = options['file_path']
-        
+        file_format = options['format'].lower()
         if not os.path.exists(file_path):
             self.stdout.write(self.style.ERROR(f'文件不存在: {file_path}'))
             return
-        
         try:
-            # 获取或创建英语学科
-            english_subject, created = Subject.objects.get_or_create(
-                name='英语',
-                defaults={'description': '高中英语'}
+            # 获取或创建物理学科
+            physics_subject, _ = Subject.objects.get_or_create(
+                name='物理',
+                defaults={'description': '高中物理'}
             )
-            
-            # 读取JSON文件
-            with open(file_path, 'r', encoding='utf-8') as f:
-                problems_data = json.load(f)
-            
+            if file_format == 'csv':
+                df = pd.read_csv(file_path, encoding='utf-8')
+                problems_data = df.to_dict(orient='records')
+            else:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    problems_data = json.load(f)
             imported_count = 0
-            topics_set = set()  # 用于记录题目中出现的所有知识点
-            
+            topics_set = set()
             for item in problems_data:
-                # 根据知识点创建或获取Topic
                 topic_name = item.get('知识点', '未分类')
                 topics_set.add(topic_name)
-                
                 topic, _ = Topic.objects.get_or_create(
-                    subject=english_subject,
+                    subject=physics_subject,
                     name=topic_name
                 )
-                
-                # 创建题目
                 problem = Problem(
                     topic=topic,
-                    title=item.get('题目', '')[:255],  # 截断标题以适应字段长度
+                    title=item.get('题目', '')[:255],
                     content=item.get('题目', ''),
                     answer=item.get('答案', ''),
                     explanation=item.get('解析', ''),
@@ -51,9 +48,7 @@ class Command(BaseCommand):
                 )
                 problem.save()
                 imported_count += 1
-            
-            self.stdout.write(self.style.SUCCESS(f'成功导入 {imported_count} 道英语题目'))
+            self.stdout.write(self.style.SUCCESS(f'成功导入 {imported_count} 道物理题目'))
             self.stdout.write(self.style.SUCCESS(f'涉及知识点: {len(topics_set)} 个'))
-            
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'导入失败: {str(e)}'))

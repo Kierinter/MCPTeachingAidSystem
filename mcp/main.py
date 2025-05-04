@@ -78,49 +78,122 @@ logging.getLogger('openai').setLevel(logging.INFO)
 logging.getLogger('httpcore').setLevel(logging.INFO)
 logging.getLogger('asyncio').setLevel(logging.INFO)
 
+async def generate_response_stream(result, streaming: bool = True) -> AsyncGenerator[str, None]:
+    """
+    生成响应流
+    
+    Args:
+        result: 运行结果
+        streaming: 是否使用流式响应
+    
+    Returns:
+        异步生成器，生成响应数据
+    """
+    if streaming:
+        try:
+            async for event in result.stream_events():
+                if event.type == "raw_response_event":
+                    if isinstance(event.data, ResponseTextDeltaEvent):
+                        yield json.dumps({"response": event.data.delta}) + "\n"
+                    elif isinstance(event.data, ResponseContentPartDoneEvent):
+                        yield json.dumps({"response": "\n"}) + "\n"
+                elif event.type == "run_item_stream_event":
+                    if event.item.type == "tool_call_item":
+                        logger.info(f"当前被调用工具信息: {event.item}")
+                    elif event.item.type == "tool_call_output_item":
+                        logger.info(f"工具调用返回结果: {event.item.output}")
+        except asyncio.TimeoutError:
+            yield json.dumps({"error": "处理超时，请重试。"}) + "\n"
+        except Exception as e:
+            logger.error(f"流式响应处理异常: {str(e)}")
+            yield json.dumps({"error": f"处理响应时发生错误: {str(e)}"}) + "\n"
+    else:
+        if hasattr(result, "final_output"):
+            yield json.dumps({"response": result.final_output}) + "\n"
+        else:
+            yield json.dumps({"response": "未获取到信息"}) + "\n"
 
-async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerator[str, None]:
+async def run_teaching_agent(query: str, streaming: bool = True, identity: str = None) -> AsyncGenerator[str, None]:
     try:
-        # 初始化各类服务器
-
-        # 初始化文件系统服务器
-        # filesystem服务器可以读取和写入任何文本文件，如txt, md, py, json, html, css, js等
-        # 主要功能包括:
-        # - list_files: 列出指定目录中的所有文件和文件夹
-        # - read_file: 读取文本文件内容
-        # - write_file: 写入内容到文本文件(会自动创建所需目录)
-        # - file_exists: 检查文件是否存在
+        # 根据身份选择不同的MCP服务器和提示词
+        active_servers = []
+        
+        # 初始化基础服务器
         await init_and_connect_server("filesystem")
-        # await init_and_connect_server("pdf")
-        await init_and_connect_server("browser")#考虑 fetch 替换？
-        await init_and_connect_server("local_web")
+        active_servers.append("filesystem")
+        
+        # 根据身份决定加载哪些服务器
+        if identity == "teahcer":
+            # 教师身份可以访问所有服务
+            await init_and_connect_server("browser")
+            await init_and_connect_server("pdf")
+            await init_and_connect_server("local_web")
+            active_servers.extend(["browser", "local_web","pdf"])
+        elif identity == "student":
+            # 学生身份仅能访问部分服务
+            await init_and_connect_server("local_web")
+            active_servers.append("local_web")
+        else:
+            # 未指定退出
+            logger.warning("身份未指定")
+            return
 
-        
+
         # 收集当前活跃的服务器
-        active_servers = await get_active_servers()
+        mcp_servers = await get_active_servers()
+        logger.info(f"已加载的MCP服务器: {active_servers}")
+
+        # 构建 instructions，附加身份信息（如果有）
+        base_instructions = (
+            "你是一个专业且全能的教学助手，可以帮助教师查询知识、总计知识、分析学生信息。\n"
+            "请根据用户的问题选择合适的工具组合来获取信息。\n"
+            "请确保回答完整，不要中途停止。\n"
+            "你可以使用文件系统工具来读取和写入文件。如果没有指定文件夹，则默认读取 'doc' 文件夹\n"
+            "文件系统工具可以读写各种文本文件(txt, md, py, js等)，但不支持二进制文件(如图片、视频)\n"
+            "你可以使用PDF工具将对话内容或报告导出为PDF文件，特别在用户要求保存或打印对话时。\n"
+            "生成PDF时，默认保存到'reports'文件夹，确保先创建该文件夹。\n"
+            "当涉及数学公式时，请使用标准的 Markdown 数学公式格式：\n"
+            "1. 行内公式使用单个美元符号包裹，如：$E=mc^2$\n"
+            "2. 行间公式使用两个美元符号包裹，如：$$\\frac{d}{dx}(x^n) = nx^{n-1}$$\n"
+            "3. 或使用数学代码块，如：```math\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n```\n"
+            "请勿使用括号 () 包裹公式，因为这会导致渲染问题。\n"
+            "确保 LaTeX 公式中所有特殊字符都正确转义。\n"
+        )
         
+        # 根据身份调整指令
+        if identity == "teacher":
+            instructions = (
+                f"【用户身份：教师】\n"
+                f"{base_instructions}\n"
+                f"作为教师助手你可以帮助：\n"
+                f"- 规划和准备课程内容\n"
+                f"- 分析学生学习情况和表现\n"
+                f"- 创建教学材料和考试题目\n"
+                f"- 获取专业的教学建议和资源\n"
+                f"你可以使用浏览器工具搜索在线资源，使用文件系统管理教学文档。"
+                f"请确保回答准确且专业。\n"
+            )
+        elif identity == "student":
+            instructions = (
+                f"【用户身份：学生】\n"
+                f"{base_instructions}\n"
+                f"作为学生助手，你可以：\n"
+                f"- 解答学习问题和概念\n"
+                f"- 提供学习方法建议\n"
+                f"- 帮助复习和巩固知识\n"
+                f"- 引导解决习题和课程作业\n"
+                f"你提供的帮助应以引导和启发为主，而不是直接提供完整答案。"
+            )
+        else:
+            instructions = base_instructions if not identity else f"【身份：{identity}】\n{base_instructions}"
+
         # 创建agent实例
         teaching_agent = Agent(
             name="教学助手",
-            instructions=(
-                "你是一个专业且全能的教学助手，可以帮助教师查询知识、总计知识、分析学生信息。\n"
-                "请根据用户的问题选择合适的工具组合来获取信息。\n"
-                "请确保回答完整，不要中途停止。\n"
-                "你可以使用文件系统工具来读取和写入文件。如果没有指定文件夹，则默认读取 'doc' 文件夹\n"
-                "文件系统工具可以读写各种文本文件(txt, md, py, js等)，但不支持二进制文件(如图片、视频)\n"
-                "你可以使用PDF工具将对话内容或报告导出为PDF文件，特别在用户要求保存或打印对话时。\n"
-                "生成PDF时，默认保存到'reports'文件夹，确保先创建该文件夹。\n"
-                "牢记之前的对话内容，确保回答时考虑上下文。\n"
-                "当涉及数学公式时，请使用标准的 Markdown 数学公式格式：\n"
-                "1. 行内公式使用单个美元符号包裹，如：$E=mc^2$\n"
-                "2. 行间公式使用两个美元符号包裹，如：$$\\frac{d}{dx}(x^n) = nx^{n-1}$$\n"
-                "3. 或使用数学代码块，如：```math\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n```\n"
-                "请勿使用括号 () 包裹公式，因为这会导致渲染问题。\n"
-                "确保 LaTeX 公式中所有特殊字符都正确转义。\n"
-            ),
-            mcp_servers=active_servers,
+            instructions=instructions,
+            mcp_servers=mcp_servers,
             model_settings=ModelSettings(
-                temperature=0.8,
+                temperature=1.0,
                 top_p=0.95,
                 max_tokens=4096,
                 tool_choice="auto",
@@ -129,7 +202,7 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
             )
         )
 
-        logger.info(f"正在处理：{query}")
+        logger.info(f"正在处理：{query} (身份: {identity or '未指定'})")
 
         if streaming:
             result = Runner.run_streamed(
@@ -144,22 +217,8 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
             )
 
             logger.info("开始流式响应")
-            try:
-                async for event in result.stream_events():
-                    if event.type == "raw_response_event":
-                        if isinstance(event.data, ResponseTextDeltaEvent):
-                            yield json.dumps({"response": event.data.delta}) + "\n"
-                        elif isinstance(event.data, ResponseContentPartDoneEvent):
-                            yield json.dumps({"response": "\n"}) + "\n"
-                    elif event.type == "run_item_stream_event":
-                        if event.item.type == "tool_call_item":
-                            logger.info(f"当前被调用工具信息: {event.item}")
-                        elif event.item.type == "tool_call_output_item":
-                            logger.info(f"工具调用返回结果: {event.item.output}")
-            except asyncio.TimeoutError:
-                yield json.dumps({"error": "处理超时，请重试。"}) + "\n"
-            except Exception as e:
-                yield json.dumps({"error": f"处理响应时发生错误: {str(e)}"}) + "\n"
+            async for chunk in generate_response_stream(result, streaming=True):
+                yield chunk
         else:
             logger.info("使用非流式输出模式处理查询...")
             result = await Runner.run(
@@ -173,18 +232,16 @@ async def run_teaching_agent(query: str, streaming: bool = True) -> AsyncGenerat
                 )
             )
 
-            if hasattr(result, "final_output"):
-                yield json.dumps({"response": result.final_output}) + "\n"
-            else:
-                yield json.dumps({"response": "未获取到信息"}) + "\n"
+            async for chunk in generate_response_stream(result, streaming=False):
+                yield chunk
 
     except asyncio.TimeoutError:
+        logger.error("连接或处理超时")
         yield json.dumps({"error": "连接或处理超时，请重试。"}) + "\n"
     except Exception as e:
+        logger.error(f"执行查询时出错: {str(e)}\n{traceback.format_exc()}")
         yield json.dumps({"error": f"连接MCP服务或执行查询时出错: {str(e)}"}) + "\n"
     finally:
-        # 不在每次请求后清理服务器，保持服务器连接以提高性能
-        # 清理工作由应用退出时的cleanup函数处理
         logger.info("waiting for next request...")
 
 app = Quart(__name__)
@@ -207,6 +264,7 @@ async def query_agent():
         
         query = data.get('query', '')
         streaming = data.get('streaming', True)
+        identity = data.get('identity', None)  # 获取身份信息
 
         if not query:
             logger.warning("收到空查询请求")
@@ -214,8 +272,8 @@ async def query_agent():
 
         async def generate():
             try:
-                logger.info("开始生成响应")
-                async for chunk in run_teaching_agent(query, streaming):
+                logger.info(f"开始生成响应 (身份: {identity or '未指定'})")
+                async for chunk in run_teaching_agent(query, streaming, identity):
                     yield chunk
             except Exception as e:
                 error_msg = f"处理请求时出错: {str(e)}\n{traceback.format_exc()}"
