@@ -272,12 +272,20 @@ def ai_generate_problems(request):
     deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 
     problems = []
+    generated_problem_hashes = set()  # 用于存储已生成题目的哈希值
+    
     for i in range(count):
+        # 添加随机性因素，避免生成相似题目
+        current_time = str(time.time())
+        random_seed = random.randint(1000, 9999)
+        
         prompt = f"""请生成一道{subject}题目，满足以下要求：
 1. 知识点: {topic}
 2. 难度级别: {difficulty}
 3. 题目要有明确的题干、答案和解析
-4. 输出格式如下(不要出现反斜杠转义问题)：
+4. 请确保题目具有独特性和多样性
+5. 基于随机种子{random_seed}生成不同风格的题目
+6. 输出格式如下(不要出现反斜杠转义问题)：
 {{
     "题目": "(具体题目描述)",
     "知识点": "{topic}",
@@ -291,7 +299,7 @@ def ai_generate_problems(request):
             response = deepseek.chat.completions.create(
                 model="deepseek-chat",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.9,
+                temperature=1.2 + (i * 0.1),  # 逐渐增加随机性
                 max_tokens=1500
             )
             result = response.choices[0].message.content
@@ -325,6 +333,14 @@ def ai_generate_problems(request):
                 # 验证所需字段是否存在
                 required_fields = ['题目', '知识点', '难度', '答案', '解析']
                 if all(field in problem_data for field in required_fields):
+                    # 检查题目是否重复
+                    problem_hash = hash(problem_data['题目'])
+                    if problem_hash in generated_problem_hashes:
+                        print("检测到重复题目，重新生成...")
+                        continue  # 跳过这次循环，重新生成
+                    
+                    # 如果不重复，添加到已生成集合和结果列表
+                    generated_problem_hashes.add(problem_hash)
                     problems.append(problem_data)
                 else:
                     missing = [f for f in required_fields if f not in problem_data]
@@ -334,8 +350,15 @@ def ai_generate_problems(request):
                     })
             else:
                 problems.append({'error': 'AI输出格式异常，无法提取JSON'})
+                
+            # 如果未生成足够数量的题目，可能需要额外尝试几次
+            if len(problems) < count and i == count - 1:
+                # 最后一次循环但还没生成够题目，继续尝试
+                i -= 1
+                
         except Exception as e:
             print(f"生成题目错误: {str(e)}")
             problems.append({'error': str(e)})
         time.sleep(0.5)
+    
     return Response({'problems': problems})
