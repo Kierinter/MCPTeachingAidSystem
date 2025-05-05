@@ -50,7 +50,7 @@ const goToCheckIn = () => {
 };
 
 const goToClasswork = () => {
-  router.push('/practiceproblem');
+  router.push('/classwork');
 };
 
 const goToProblemManagement = () => {
@@ -165,12 +165,12 @@ onMounted(async () => {
         <div class="col-span-3 bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold text-gray-800 mb-4">快捷功能</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div @click="goToDialogue"
-              class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
-              <div class="text-blue-600 text-lg font-medium">AI对话</div>
-              <div class="text-sm text-gray-600">向AI提问解题</div>
-            </div>
             <div @click="goToPracticeProblem"
+              class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
+              <div class="text-blue-600 text-lg font-medium">刷题界面</div>
+              <div class="text-sm text-gray-600">获取建议的刷题</div>
+            </div>
+            <div @click="goToClasswork"
               class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
               <div class="text-green-600 text-lg font-medium">课堂作业</div>
               <div class="text-sm text-gray-600">完成课堂练习</div>
@@ -235,7 +235,7 @@ onMounted(async () => {
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
               <div class="text-blue-600 text-lg font-medium">布置作业</div>
-              <div class="text-sm text-gray-600">创建新的作业</div>
+              <div class="text-sm text-gray-600">创建课堂作业</div>
             </div>
             <!-- <div class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
               <div class="text-green-600 text-lg font-medium">班级管理</div>

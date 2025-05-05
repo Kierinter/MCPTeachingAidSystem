@@ -122,17 +122,19 @@ async def run_teaching_agent(query: str, streaming: bool = True, identity: str =
         await init_and_connect_server("filesystem")
         active_servers.append("filesystem")
         
+        print(identity)
         # 根据身份决定加载哪些服务器
-        if identity == "teahcer":
+        if identity == "teacher":
             # 教师身份可以访问所有服务
             await init_and_connect_server("browser")
             await init_and_connect_server("pdf")
             await init_and_connect_server("local_web")
-            active_servers.extend(["browser", "local_web","pdf"])
+            active_servers.extend(["browser", "local_web", "pdf"])
         elif identity == "student":
             # 学生身份仅能访问部分服务
             await init_and_connect_server("local_web")
-            active_servers.append("local_web")
+            await init_and_connect_server("pdf")
+            active_servers.extend(["local_web", "pdf"])
         else:
             # 未指定退出
             logger.warning("身份未指定")

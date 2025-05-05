@@ -120,12 +120,12 @@ const groupedHistory = computed(() => {
 
 // 预定义的话题建议
 const suggestedTopics = ref([
-  "高等数学中的极限概念如何理解？",
-  "线性代数的特征值和特征向量有什么作用？",
-  "如何解决难度较大的微分方程？",
-  "概率论中的贝叶斯公式应用场景？",
-  "数据结构中哈希表的工作原理是什么？",
-  "C编程语言中的内存管理机制？"
+  "高中数学中函数的定义域与值域如何确定？",
+  "物理中牛顿三大定律的实际应用有哪些？",
+  "化学中强酸与弱酸的区分是怎样的？",
+  "高中生物中光合作用的过程及意义？",
+  "高中英语写作常见的结构和表达技巧？",
+  "历史上影响中国近代化进程的重要事件有哪些？"
 ]);
 
 // 生成新的建议话题
@@ -309,6 +309,11 @@ async function handleSendMessage() {
         streaming: true,
         identity: userRole.value // 传递身份信息
       }),
+    });
+    console.log('发送的请求:', {
+      query: query.value,
+      streaming: true,
+      identity: userRole.value
     });
 
     console.log('收到响应:', response);
@@ -527,7 +532,7 @@ async function handleSendMessage() {
             class="flex-1 p-3 border border-gray-300 rounded-lg resize-none h-[60px] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></textarea>
           <button @click="handleSendMessage" :disabled="isLoading || !query.trim()"
             class="px-6 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
-            {{ isLoading ? '发送中...' : '发送' }}
+            {{ isLoading ? '生成回复中...' : '发送' }}
           </button>
         </div>
       </div>
