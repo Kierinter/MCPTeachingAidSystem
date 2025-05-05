@@ -30,8 +30,8 @@ const teacherData = {
 
   ],
   pendingTasks: [
-    { id: 1, title: '批改期中考试', count: 83, deadline: '3天后' },
-    { id: 2, title: '审核学生作业', count: 24, deadline: '今天' }
+    { id: 1, title: '批改期中考试', count:  3, deadline: '3天后' },
+    { id: 2, title: '审核学生作业', count:  4, deadline: '今天' }
   ]
 };
 
@@ -39,6 +39,13 @@ const goToDialogue = () => {
   router.push('/dialogue');
 };
 
+const goToPracticeProblem = () => {
+  router.push('/practiceproblem');
+};
+
+const goToWrongBook = () =>{
+  router.push('/wrongbook');
+};
 const goToLogin = () => {
   router.push('/login');
 };
@@ -168,14 +175,15 @@ onMounted(async () => {
             <div @click="goToPracticeProblem"
               class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
               <div class="text-blue-600 text-lg font-medium">刷题界面</div>
-              <div class="text-sm text-gray-600">获取建议的刷题</div>
+              <div class="text-sm text-gray-600">获取建议的题目</div>
             </div>
             <div @click="goToClasswork"
               class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
               <div class="text-green-600 text-lg font-medium">课堂作业</div>
               <div class="text-sm text-gray-600">完成课堂练习</div>
             </div>
-            <div class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
+            <div @click="goToWrongBook"
+            class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
               <div class="text-purple-600 text-lg font-medium">错题本</div>
               <div class="text-sm text-gray-600">查看错题记录</div>
             </div>
@@ -233,14 +241,11 @@ onMounted(async () => {
         <div class="col-span-3 bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold text-gray-800 mb-4">教学工具</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
+            <div  @click="goToClasswork"
+            class="bg-blue-50 p-4 rounded-lg text-center cursor-pointer hover:bg-blue-100 transition-colors">
               <div class="text-blue-600 text-lg font-medium">布置作业</div>
               <div class="text-sm text-gray-600">创建课堂作业</div>
             </div>
-            <!-- <div class="bg-green-50 p-4 rounded-lg text-center cursor-pointer hover:bg-green-100 transition-colors">
-              <div class="text-green-600 text-lg font-medium">班级管理</div>
-              <div class="text-sm text-gray-600">管理班级和学生</div>
-            </div> -->
             <div @click="goToProblemManagement"
               class="bg-purple-50 p-4 rounded-lg text-center cursor-pointer hover:bg-purple-100 transition-colors">
               <div class="text-purple-600 text-lg font-medium">题库管理</div>
@@ -279,7 +284,8 @@ onMounted(async () => {
                   <td class="px-6 py-4 whitespace-nowrap">{{ cls.name }}</td>
                   <td class="px-6 py-4 whitespace-nowrap">{{ cls.students }} 人</td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <button class="text-primary-600 hover:text-primary-800">查看</button>
+                    <button @click="goToStudentManagement"
+                    class="text-primary-600 hover:text-primary-800">查看</button>
                   </td>
                 </tr>
               </tbody>
@@ -293,7 +299,7 @@ onMounted(async () => {
           <div class="space-y-4">
             <div v-for="task in teacherData.pendingTasks" :key="task.id" class="border-l-4 border-yellow-500 pl-4 py-2">
               <h3 class="font-medium">{{ task.title }}</h3>
-              <div class="text-sm text-gray-500">{{ task.count }} 项 · {{ task.deadline }}</div>
+              <div class="text-sm text-gray-500">第{{ task.count }}项 · {{ task.deadline }}</div>
               <button
                 class="mt-2 px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 transition-colors text-sm">
                 处理

@@ -4,11 +4,13 @@ from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 
-from .models import StudentProfile, AcademicRecord
+from .models import StudentProfile, AcademicRecord, ClassWork, StudentWork
 from .serializers import (
     StudentProfileSerializer,
     StudentProfileUpdateSerializer,
-    AcademicRecordSerializer
+    AcademicRecordSerializer,
+    ClassWorkSerializer,
+    StudentWorkSerializer
 )
 from checkin.views import IsTeacher
 
@@ -136,3 +138,59 @@ class AcademicRecordViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied("您没有权限为此学生创建记录")
         
         serializer.save(student=student)
+
+
+class IsTeacher(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'teacher'
+
+class IsStudent(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'student'
+
+class ClassWorkViewSet(viewsets.ModelViewSet):
+    queryset = ClassWork.objects.all()
+    serializer_class = ClassWorkSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'teacher':
+            return ClassWork.objects.filter(created_by=user)
+        elif user.role == 'student':
+            # 学生看到自己班级的作业
+            class_name = getattr(user.student_profile, 'class_name', None)
+            return ClassWork.objects.filter(class_name=class_name)
+        return ClassWork.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def submissions(self, request, pk=None):
+        """获取某次作业的所有学生提交（仅教师可用）"""
+        classwork = self.get_object()
+        if request.user.role != 'teacher':
+            return Response({'detail': '无权限'}, status=403)
+        submissions = StudentWork.objects.filter(classwork=classwork)
+        return Response(StudentWorkSerializer(submissions, many=True).data)
+
+class StudentWorkViewSet(viewsets.ModelViewSet):
+    queryset = StudentWork.objects.all()
+    serializer_class = StudentWorkSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'teacher':
+            return StudentWork.objects.all()
+        elif user.role == 'student':
+            return StudentWork.objects.filter(student=user)
+        return StudentWork.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(student=self.request.user)
+
+    def perform_update(self, serializer):
+        # 教师批改时可更新分数和评语
+        serializer.save()

@@ -7,9 +7,12 @@ import Dialogue from "@/component/Dialogue.vue";
 import CheckIn from "@/component/CheckIn.vue";
 import PracticeProblem from "@/component/PracticeProblem.vue";
 import ProblemManagement from "@/component/ProblemManagement.vue";
-// import CheckInDetails from "@/component/CheckInDetails.vue";
 import StudentManagement  from "@/component/StudentManagement.vue";
 import StudentCheckIn from "@/component/StudentCheckIn.vue";
+import ClassWork from "@/component/ClassWork.vue";
+import WrongBook from "@/component/WrongBook.vue";
+import path from "path";
+
 const routes = [
   {
     path: "/",
@@ -71,12 +74,18 @@ const routes = [
     component: StudentCheckIn,
     meta: { requiresAuth: true },
   },
-  // {
-  //   path: "/checkindetails",
-  //   name: "CheckInDetails",
-  //   component: CheckInDetails,
-  //   meta: { requiresAuth: true},
-  // },
+  {
+    path: "/classwork",
+    name: "ClassWork",
+    component: ClassWork,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/wrongbook",
+    name: "WrongBook",
+    component: WrongBook,
+    meta: { requiresAuth: true },
+  },
 ];
 
 const router = createRouter({

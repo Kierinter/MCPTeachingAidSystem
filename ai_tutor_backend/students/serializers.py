@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import StudentProfile, AcademicRecord
+from .models import StudentProfile, AcademicRecord, ClassWork, StudentWork
 
 User = get_user_model()
 
@@ -71,3 +71,22 @@ class AcademicRecordSerializer(serializers.ModelSerializer):
         if hasattr(obj.student, 'real_name') and obj.student.real_name:
             return obj.student.real_name
         return obj.student.username if obj.student else ''
+
+
+class ClassWorkSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.SerializerMethodField()
+    class Meta:
+        model = ClassWork
+        fields = ['id', 'title', 'description', 'class_name', 'created_by', 'created_by_name', 'created_at', 'deadline']
+        read_only_fields = ['id', 'created_by', 'created_by_name', 'created_at']
+    def get_created_by_name(self, obj):
+        return getattr(obj.created_by, 'real_name', obj.created_by.username)
+
+class StudentWorkSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    class Meta:
+        model = StudentWork
+        fields = ['id', 'classwork', 'student', 'student_name', 'content', 'submitted_at', 'score', 'feedback']
+        read_only_fields = ['id', 'student', 'student_name', 'submitted_at', 'score', 'feedback']
+    def get_student_name(self, obj):
+        return getattr(obj.student, 'real_name', obj.student.username)

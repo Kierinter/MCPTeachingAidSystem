@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed ,onUnmounted} from 'vue';
 import { getAuthHeaders } from '../utils/auth';
 
 // 数据状态
@@ -17,6 +17,10 @@ const submitLoading = ref(false);
 const showAnswer = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
+
+// 推荐相关
+const studentProfile = ref(null);
+const recommendReason = ref('');
 
 // 计时器
 const timer = ref(null);
@@ -208,11 +212,84 @@ const prevProblem = () => {
   fetchProblemDetail(problems.value[prevIndex].id);
 };
 
+// 获取当前学生档案
+const fetchStudentProfile = async () => {
+  try {
+    const res = await fetch('http://localhost:8080/api/students/profiles/me/', {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    studentProfile.value = data;
+    // 推荐逻辑
+    let reason = '';
+    if (data.weak_subjects_list && data.weak_subjects_list.length > 0) {
+      selectedSubject.value = null; // 先不限定学科
+      selectedTopic.value = null;
+      reason += `优先推荐薄弱学科：${data.weak_subjects_list.join('、')}`;
+    }
+    if (data.academic_level) {
+      selectedDifficulty.value = academicLevelToDifficulty(data.academic_level);
+      reason += (reason ? '，' : '') + `适合你的学业水平：${academicLevelLabel(data.academic_level)}`;
+    }
+    recommendReason.value = reason;
+  } catch (e) {
+    // 忽略
+  }
+};
+
+function academicLevelToDifficulty(level) {
+  switch(level) {
+    case 'excellent': return '困难';
+    case 'good': return '较难';
+    case 'average': return '中等';
+    case 'below_average': return '简单';
+    case 'poor': return '简单';
+    default: return null;
+  }
+}
+function academicLevelLabel(level) {
+  switch(level) {
+    case 'excellent': return '优秀';
+    case 'good': return '良好';
+    case 'average': return '中等';
+    case 'below_average': return '中下';
+    case 'poor': return '薄弱';
+    default: return level;
+  }
+}
+
 // 页面初始化
 onMounted(async () => {
+  await fetchStudentProfile();
   await fetchSubjects();
   await fetchTopics();
+  // 自动推荐题目
+  await fetchRecommendedProblems();
 });
+
+// 获取推荐题目
+const fetchRecommendedProblems = async () => {
+  loading.value = true;
+  errorMessage.value = '';
+  problems.value = [];
+  try {
+    const response = await fetch('http://localhost:8080/api/problems/problems/recommend/', {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error('获取推荐题目失败');
+    const data = await response.json();
+    problems.value = data;
+    if (data.length === 0) {
+      errorMessage.value = '没有推荐题目';
+    }
+  } catch (error) {
+    console.error('获取推荐题目错误:', error);
+    errorMessage.value = '获取推荐题目失败，请刷新重试';
+  } finally {
+    loading.value = false;
+  }
+};
 
 // 组件销毁时清理计时器
 onUnmounted(() => {
@@ -298,7 +375,7 @@ onUnmounted(() => {
 
       <!-- 题库列表 -->
       <div v-if="problems.length && !currentProblem" class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">搜索结果 ({{ problems.length }} 题)</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">推荐练习 ({{ problems.length }} 题)</h2>
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -319,8 +396,8 @@ onUnmounted(() => {
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="problem in problems" :key="problem.id">
-                <td class="px-6 py-4 whitespace-nowrap">
-                  {{ problem.title }}
+                <td class="px-6 py-4 whitespace-nowrap max-w-[300px]">
+                  <div class="truncate" :title="problem.title">{{ problem.title }}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   {{ problem.topic_name }}

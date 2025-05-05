@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 class StudentProfile(models.Model):
     """学生详细信息模型"""
@@ -67,3 +68,44 @@ class AcademicRecord(models.Model):
         
     def __str__(self):
         return f"{self.student.username} - {self.subject} ({self.semester})"
+
+
+class ClassWork(models.Model):
+    """课堂作业模型"""
+    title = models.CharField(max_length=100, verbose_name="作业标题")
+    description = models.TextField(blank=True, verbose_name="作业描述")
+    class_name = models.CharField(max_length=50, verbose_name="班级")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_classworks',
+        verbose_name="布置教师"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="布置时间")
+    deadline = models.DateTimeField(verbose_name="截止时间")
+
+    class Meta:
+        verbose_name = "课堂作业"
+        verbose_name_plural = "课堂作业"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.class_name} - {self.title}"
+
+class StudentWork(models.Model):
+    """学生作业提交模型"""
+    classwork = models.ForeignKey(ClassWork, on_delete=models.CASCADE, related_name='submissions', verbose_name="课堂作业")
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='student_works', verbose_name="学生")
+    content = models.TextField(verbose_name="作业内容")
+    submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")
+    score = models.FloatField(null=True, blank=True, verbose_name="分数")
+    feedback = models.TextField(blank=True, verbose_name="教师评语")
+
+    class Meta:
+        verbose_name = "学生作业提交"
+        verbose_name_plural = "学生作业提交"
+        unique_together = ('classwork', 'student')
+        ordering = ['-submitted_at']
+
+    def __str__(self):
+        return f"{self.student.username} - {self.classwork.title}"

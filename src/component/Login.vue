@@ -60,6 +60,8 @@ const handleLogin = async () => {
     
     // 登录成功，保存令牌和用户信息
     setAuth(data.token, data.user)
+    console.log(data.token);
+    console.log(data.user);
     
     // 如果有重定向，则跳转到原目标页面，否则跳转到主页
     const redirectPath = route.query.redirect || '/index'
