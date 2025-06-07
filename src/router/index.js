@@ -99,7 +99,6 @@ router.beforeEach((to, from, next) => {
   const authToken = localStorage.getItem("authToken");
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : null;
-
   // 如果路由需要认证且没有令牌，重定向到登录页面
   if (to.meta.requiresAuth && !authToken) {
     next({ name: "Login", query: { redirect: to.fullPath } });

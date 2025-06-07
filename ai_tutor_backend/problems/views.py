@@ -266,7 +266,7 @@ def ai_generate_problems(request):
         return Response({'detail': '参数不完整'}, status=status.HTTP_400_BAD_REQUEST)
 
     # 读取API KEY和base_url
-    DEEPSEEK_API_KEY = "sk-53430f09089a436dba84954547afd5fe"
+    DEEPSEEK_API_KEY = "your_deepseek_api_key_here"  # 替换为实际的API Key
     if not DEEPSEEK_API_KEY:
         return Response({'detail': '未配置DEEPSEEK_API_KEY'}, status=500)
     deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")

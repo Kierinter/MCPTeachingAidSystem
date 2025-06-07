@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { marked } from 'marked';
 import { useRouter } from 'vue-router';
-import { getCurrentUser, clearAuth, getAuthHeaders } from '../utils/auth';
+import { getCurrentUser} from '../utils/auth';
 
 const router = useRouter();
 const userRole = ref('student'); 

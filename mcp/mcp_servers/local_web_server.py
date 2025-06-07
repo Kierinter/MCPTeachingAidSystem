@@ -20,7 +20,8 @@ server_port = 8080  # 默认端口
 web_root = None
 
 # 系统页面映射关系
-SYSTEM_PAGES = {
+
+ = {
     "checkin": "/checkin", #签到页面
     "index": "/index", #主页
     "dialogue": "/dialogue", #对话页面
@@ -29,6 +30,8 @@ SYSTEM_PAGES = {
     "practiceproblem": "/practiceproblem", #刷题页面
     "problemmanagement": "/problemmanagement", #题库管理页面，教师独享
     "studentmanagement": "/studentmanagement", #学生管理页面，教师独享
+    "classwork": "/classwork", #课堂作业页面
+    "homework": "/classwork", #课堂作业页面
 
     "签到界面": "/checkin", #签到界面
     "对话界面": "/dialogue", #对话界面
@@ -38,6 +41,7 @@ SYSTEM_PAGES = {
     "刷题界面": "/practiceproblem", #刷题界面
     "题库管理界面": "/problemmanagement", #题库管理界面，教师独享
     "学生管理页面": "/studentmanagement", #学生管理页面，教师独享
+    "课堂作业页面": "/classwork", #课堂作业页面
 }
 
 # 系统base URL
@@ -461,7 +465,12 @@ async def get_available_system_pages() -> dict:
             "register": "用户注册页面",
             "information": "用户信息页面",
             "index": "主页",
-            "welcome": "欢迎页面"
+            "welcome": "欢迎页面",
+            "practiceproblem": "刷题页面",
+            "problemmanagement": "题库管理页面，教师独享",
+            "studentmanagement": "学生管理页面，教师独享",
+            "classwork": "课堂作业页面",
+            "homework": "课堂作业页面"
         }
     }
 

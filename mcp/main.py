@@ -5,7 +5,6 @@ from quart_cors import cors
 import asyncio
 import os
 import json
-import time
 import traceback
 from typing import AsyncGenerator
 import logging
@@ -17,23 +16,19 @@ from dotenv import load_dotenv
 
 from agents import (
     Agent,
-    AgentHooks,
     Model,
     ModelSettings,
     ModelProvider,
     RunConfig,
-    RunContextWrapper,
     Runner,
     OpenAIChatCompletionsModel,
     RunConfig,
     set_tracing_disabled,
-    function_tool,
 )
 
 # 导入服务器管理函数
 from mcp_server_controller import (
     init_and_connect_server,
-    cleanup_server,
     cleanup_all_servers,
     get_active_servers,
 )
@@ -303,7 +298,7 @@ async def generate_topics():
         try:
             agent = Agent(
                 name = "话题生成助手",
-                instructions = "你是一个**专业的**学习助手，可以生成一些学习相关的话题。帮助生成**六个**学习相关的话题。话题应涵盖数学、物理、编程等领域，并且每个话题简洁明了，适合大学生学习。**只需要输出话题，不需要解释以及多余的回复。**",
+                instructions = "你是一个**专业的**学习助手，可以生成一些学习相关的话题。帮助生成**六个**学习相关的话题。话题应涵盖数学、物理、编程等领域，并且每个话题简洁明了，适合高中生学习。**只需要输出话题，不需要解释以及多余的回复。**",
                 mcp_servers = [],  # 不使用任何MCP服务器
                 model_settings = ModelSettings(
                     temperature = 0.8,
